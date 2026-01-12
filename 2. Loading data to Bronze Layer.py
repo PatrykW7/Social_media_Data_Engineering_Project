@@ -8,7 +8,7 @@ import dlt
           comment = "Bronze table for account_user")
 def bronze_account_user():
     return(
-        spark.read(
+        spark.read
         .format("jdbc")
         .option("url", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-jdbc"))
         .option("dbtable", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-tab-acc-users"))
@@ -20,28 +20,28 @@ def bronze_account_user():
                 F.current_timestamp().alias("ingest_time")
         
         )
-    )
+    
 )
     
 
-@dlt.pipeline(
-    name => "time",
+@dlt.table(
+    name = "time",
     comment = "table with time"
 )
 def time():
     return(
-        spark.read(
+        spark.read
             .format("jdbc")
-            .option("url", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-db-jdbc"))
-            .option("dbtable", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-db-tab-time"))
-            .option("user", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-dblog"))
-            .option("password", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-secret"))
+            .option("url", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-jdbc"))
+            .option("dbtable", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-tab-time"))
+            .option("user", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-dblog"))
+            .option("password", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-secret"))
             .load()
             .select(
                 "*",
                 F.current_timestamp().alias("ingest_time")
             )
-        )
+        
     )
 
 
@@ -53,19 +53,20 @@ def time():
     comment = "bronze table for follow_relationship"
 )
 def bronze_follow_relationship():
-    return (spark.read(
+    return (
+        spark.read
         .format("jdbc")
-        .option("url", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-db-jdbc"))
-        .option("dbtable", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-db-tab-follow-relationship"))
-        .option("user", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-dblog"))
-        .option("password", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-secret"))
+        .option("url", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-jdbc"))
+        .option("dbtable", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-tab-follow-relationship"))
+        .option("user", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-dblog"))
+        .option("password", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-secret"))
         .load()
         .select(
             "*",
             F.current_timestamp().alias("ingest_time")
             )
 
-        )
+        
 )
 
 
@@ -77,62 +78,65 @@ def bronze_follow_relationship():
     comment = "bronze table for advertisers"
 )
 def bronze_advertisers():
-    return (spark.read(
+    return (
+        spark.read
         .format("jdbc")
-        .option("url", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-db-jdbc"))
-        .option("dbtable", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-db-tab-advertisers"))
-        .option("user", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-dblog"))
-        .option("password", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-secret"))
+        .option("url", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-jdbc"))
+        .option("dbtable", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-tab-advertisers"))
+        .option("user", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-dblog"))
+        .option("password", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-secret"))
         .load()
         .select(
             "*",
             F.current_timestamp().alias("ingest_data")
-        )
+        
     ))
 
 
 @dlt.table(
-    name = "bronze_advertisements"
+    name = "bronze_advertisements",
     table_properties = {
         "schema" : "bronze"
     },
-    comments = "bronze table for advertisements"
+    comment = "bronze table for advertisements"
 )
 def bronze_advertisements():
-    return (spark.read(
+    return (
+        spark.read
         .format("jdbc")
-        .option("url", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-db-jdbc"))
-        .option("dbtable", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-db-tab-advertisements"))
-        .option("user", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-dblog"))
-        .option("password", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-secret"))
+        .option("url", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-jdbc"))
+        .option("dbtable", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-tab-advertisements"))
+        .option("user", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-dblog"))
+        .option("password", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-secret"))
         .load()
         .select(
             "*",
             F.current_timestamp().alias("ingest_time")
-        )
+        
     ))
 
 
 
 @dlt.table(
-    name:"bronze_posts",
+    name="bronze_posts",
     table_properties = {
         "schema" : "bronze"
     },
     comment = "bronze table for posts"
 )
 def bronze_posts():
-    return (spark.read(
+    return (
+        spark.read
         .format("jdbc")
-        .option("url", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-db-jdbc"))
-        .option("dbtable", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-db-tab-posts"))
-        .option("user", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-dblog"))
-        .option("password", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-secret"))
+        .option("url", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-jdbc"))
+        .option("dbtable", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-tab-posts"))
+        .option("user", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-dblog"))
+        .option("password", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-secret"))
         .load()
         .select(
             "*",
             F.current_timestamp().alias("ingest_time")
-        )
+        
     ))
 
 
@@ -141,22 +145,23 @@ def bronze_posts():
 @dlt.table(
     name = "bronze_post_media",
     table_properties = {
-        schema = "bronze"
+        "schema" : "bronze"
     },
     comment = "bronze table for post_media"
 )
 def bronze_post_media():
-    return (spark.read(
+    return (
+        spark.read
         .format("jdbc")
-        .option("url", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-db-jdbc"))
-        .option("dbtable", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-db-tab-post-media"))
-        .option("user", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-dblog"))
-        .option("password", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-secret"))
+        .option("url", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-jdbc"))
+        .option("dbtable", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-tab-post-media"))
+        .option("user", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-dblog"))
+        .option("password", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-secret"))
         .load()
         .select(
             "*",
             F.current_timestamp().alias("ingest_time")
-        )
+        
     ))
 
 
@@ -171,17 +176,18 @@ def bronze_post_media():
     comment = "bronze table for hashtags"
 )
 def bronze_hashtags():
-    return (spark.read(
+    return (
+        spark.read
         .format("jdbc")
-        .option("url", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-db-jdbc"))
-        .option("dbtable", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-db-tab-hashtags"))
-        .option("user", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-dblog"))
-        .option("password", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-secret"))
+        .option("url", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-jdbc"))
+        .option("dbtable", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-tab-hashtags"))
+        .option("user", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-dblog"))
+        .option("password", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-secret"))
         .load()
         .select(
             "*",
             F.current_timestamp().alias("ingest_time")
-        )
+        
 ))
 
 
@@ -191,20 +197,21 @@ def bronze_hashtags():
     table_properties = {
         "schema" : "bronze"
     },
-    comments = "bronze table for post_hashtags"
+    comment = "bronze table for post_hashtags"
 )
 def bronze_post_hashtags():
-    return (spark.read(
+    return (
+        spark.read
         .format("jdbc")
-        .option("url", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-db-jdbc"))
-        .option("dbtable", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-db-tab-post-hashtags"))
-        .option("user", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-dblog"))
-        .option("password", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-secret"))
+        .option("url", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-jdbc"))
+        .option("dbtable", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-tab-post-hashtags"))
+        .option("user", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-dblog"))
+        .option("password", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-secret"))
         .load()
         .select(
             "*",
             F.current_timestamp().alias("ingest_time")
-        )
+        
     ))
 
 
@@ -214,20 +221,21 @@ def bronze_post_hashtags():
     table_properties = {
         "schema":"bronze"
     },
-    comments = "bronze table for comments"
+    comment = "bronze table for comments"
 )
 def bronze_comments():
-    return (spark.read(
+    return (
+        spark.read
         .format("jdbc")
-        .option("url", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-db-jdbc"))
-        .option("dbtable", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-db-tab-comments"))
-        .option("user", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-dblog"))
-        .option("password", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-secret"))
+        .option("url", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-jdbc"))
+        .option("dbtable", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-tab-comments"))
+        .option("user", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-dblog"))
+        .option("password", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-secret"))
         .load()
         .select(
             "*",
             F.current_timestamp().alias("ingest_time")
-        )
+        
     ))
 
 
@@ -237,34 +245,64 @@ def bronze_comments():
     table_properties = {
         "schema":"bronze"
     },
-    comments = "bronze table for reactions"
+    comment = "bronze table for reactions"
 )
 def bronze_reactions():
-    return (spark.read(
+    return (
+        spark.read
         .format("jdbc")
-        .option("url", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-db-jdbc"))
-        .option("dbtable", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-db-tab-reactions"))
-        .option("user", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-dblog"))
-        .option("password", dbutils.secrets.get(scope=>"sm-secret-scope", key => "social-media-project-secret"))
+        .option("url", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-jdbc"))
+        .option("dbtable", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-tab-reactions"))
+        .option("user", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-dblog"))
+        .option("password", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-secret"))
         .load()
         .select(
             "*",
             F.current_timestamp().alias("ingest_time")
-        )
+        
     ))
 
 
+# LOAD JSON FILES + FILES TRANSFORM 
+
+@dlt.view()
+def raw_account_user_details():
+    return (
+        spark.readStream
+            .format("cloudFiles")
+            .option("cloudFiles.format","json")
+            .option("cloudFiles.inferColumnTypes","true")
+            .option("multiline","true")
+            .load("/Volumes/content/landing/json_files_data/")
+        )
 
 
+@dlt.table(
+    name = "account_user_details",
+    comment = "transformed table with json files"
+)
+def account_user_details():
+    return (
+        dlt.read_stream("raw_account_user_details")
+            .select(
+                "userId",
+                F.date_format(F.make_date(F.col("accountMetadata.accountAge.createdYear").cast("int"), F.col("accountMetadata.accountAge.createdMonth").cast("int"), F.lit(1)),'yyyy-MM').alias("account_creation_year_month"),
+                "accountMetadata.accountAge.accountAgeCategory",
+                "accountMetadata.verificationStatus.isVerified",
+                "accountMetadata.verificationStatus.verificationConfidence",
+                "analyticsFlags.potentialBot",
+                "analyticsFlags.potentialInfluencer",
+                "friendsCount",
+                "listedCount",
+                "location",
+                "rawDescription",
+                "profileAnalysis.profileCompletenessScore",
+                "networkFeatures.networkType"
+            )
+            .withColumn("accountAgeCategory", F.regexp_replace("accountAgeCategory", "_", ' ')) \
+            .withColumn("networkType", F.regexp_replace("networkType", "_", ' '))
 
-
-
-
-
-
-
-
-
+    )
 
 
 
