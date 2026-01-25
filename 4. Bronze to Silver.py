@@ -1,30 +1,36 @@
 from pyspark.sql import functions as F
 import dlt
 
+
+#spark.sql("USE CATALOG content")
 ##### account_user #####
 @dlt.table(
     name = "silver_account_user_clean",
     table_properties = {"schema" : "silver"},
-    comment = "silver table for account_user"
+    comment = "silver table for account_user",
+    temporary = True
 )
 
 @dlt.expect("is_group","is_group IS NOT NULL")
 @dlt.expect_or_drop("account_id","account_id IS NOT NULL")
-@dlt.expect_or_fail("account_id", "account_id >= 0 ")
-@dlt.expect_or_drop("login","login IS NOT NULL")
-@dlt.expect_or_drop("password","password IS NOT NULL")
-def silver_account_user():
+@dlt.expect_or_fail("account_id>0", "account_id >= 0 ")
+@dlt.expect_or_fail("login","login IS NOT NULL")
+@dlt.expect_or_fail("password","password IS NOT NULL")
+def silver_account_user_clean():
     return (
-        spark.readStream.table("LIVE.bronze_account_user")
+        spark.readStream
+        .option("readChangeFeed", "true")
+        .table("LIVE.bronze_account_user")  
+        #.filter(F.col("_change_type") == "insert")
         .select("*") # check 
-        .withColumn("is_group", F.col("is_group")).cast("int")
+        .withColumn("is_group", F.col("is_group").cast("int"))
         .withColumn("account_name", F.trim(F.col("account_name")))
         .withColumn("first_name", F.trim(F.col("first_name")))
         .withColumn("last_name", F.trim(F.col("last_name")))
         .withColumn("display_name", F.trim(F.col("display_name")))
         .withColumn("first_name", F.when(F.col("first_name") == 'n/d', None).otherwise(F.col("first_name"))) # check this 
         .withColumn("last_name", F.when(F.col("last_name") == 'n/d', None).otherwise(F.col("last_name")))
-        .withColumn("display_name", F.when(F.col("display_name") = 'n/d', None).othwerise(F.col("display_name")))
+        .withColumn("display_name", F.when(F.col("display_name") == 'n/d', None).otherwise(F.col("display_name")))
         .withColumn("profile_url", F.trim(F.col("profile_url")))
         .withColumn("profile_image_storage", F.trim(F.col("profile_image_storage")))
         .withColumn("profile_baner_storage", F.trim(F.col("profile_baner_storage")))
@@ -39,43 +45,47 @@ dlt.create_streaming_table(
 dlt.apply_changes(
     target = "silver_account_user",
     source = "silver_account_user_clean",
-    keys = "account_id",
-    sequence_by = "account_id"
-    stored_as_scd_type = "2"
+    keys = ["account_id"],
+    sequence_by = "ingest_time",#,#"account_id",
+    stored_as_scd_type = "2",
+    track_history_column_list = ["account_name","is_group","first_name","last_name","display_name"],
+    except_column_list = ["ingest_time"]#["ingest_time","_commit_version","_commit_timestamp"]
 )
 
 
 
 
+'''
 ### follow_relationship
 
-dlt.table(
-    name = "silver_follow_relationship_clean",
-    comment = "silver table for follow_relationship",
-    table_properties = {"schema" : "silver"}
+@dlt.table(
+    name = "silver_follow_clean",
+    table_properties = {"schema" : "silver"},
+    comment = "silver table for follow_relationship"
+    
 )
 
 @dlt.expect("self_following","follower_account_id <> followed_account_id")
-@dlt.expect("date_null", "followed_at_time IS NOT NULL")
-def silver_follow_relationship():
+@dlt.expect("date_null", "followed_at_time_id IS NOT NULL")
+def silver_follow_clean():
     return(
-        spark.readStream.table("LIVE.bronze_follow_relationship")
+        spark.read.table("LIVE.bronze_follow_relationship")
         .select("*")
     )
 
 
 dlt.create_streaming_table(
-    name = "silver_follow_relationship",
+    name = "silver_follow",
     comment = "SCD Type 2 follow_relationship",
     table_properties = {"schema" : "silver"}
 )
 
 
 dlt.apply_changes(
-    target = "silver_follow_relationship",
-    source = "silver_follow_relationship_clean",
+    target = "silver_follow",
+    source = "silver_follow_clean",
     keys = ["follower_account_id", "followed_account_id"],
-    sequence_by = "followed_at_time_id" # -> check,
+    sequence_by = "followed_at_time_id", # -> check,
     stored_as_scd_type = "2"
 )
 
@@ -93,9 +103,9 @@ dlt.apply_changes(
     table_properties = {"schema" : "silver"}
 )
 
-@dlt.expectations("advertiser_id", "advertiser_id IS NOT NULL")
-@dlt.expectations("billing_account_code", "billing_account_code IS NOT NULL")
-@dlt.expectations("billing_status", "billing_status IS NOT NULL")
+@dlt.expect("advertiser_id", "advertiser_id IS NOT NULL")
+@dlt.expect("billing_account_code", "billing_account_code IS NOT NULL")
+@dlt.expect("billing_status", "billing_status IS NOT NULL")
 def silver_advertisers():
     return(
         spark.readStream.table("LIVE.bronze_advertisers")
@@ -116,7 +126,7 @@ dlt.apply_changes(
     target = "silver_advertisers",
     source = "silver_advertisers_clean",
     keys = "advertiser_id",
-    sequence = "advertiser_id" # check 
+    sequence_by = "advertiser_id" # check 
 )
 
 
@@ -159,7 +169,7 @@ dlt.apply_changes(
     target = "silver_advertisements",
     source=  "silver_advertisements_clean",
     keys = "advertisement_id",
-    source = "created_at_time",
+    sequence_by = "created_at_time",
     stored_as_scd_type = "2"
 )
 
@@ -180,7 +190,7 @@ def silver_posts():
         spark.readStream.table("LIVE.bronze_posts")
         .select("*")
         .withColumn("post_text", F.trim(F.col("post_text")))
-        .withColumn("visibility", F.when(F.col("visibility")=='n/d', None).otherwise(F.col("visibility")))
+        .withColumn("visibility", F.when(F.col("visibility") =='n/d', None).otherwise(F.col("visibility")))
     )
 
 
@@ -226,7 +236,7 @@ dlt.apply_changes(
     target = "silver_post_media",
     source = "silver_post_media_clean",
     keys = ["media_id", "post_id"], ### check
-    sequence = ["media_id", "post_id"] ### check,
+    sequence_by = ["media_id", "post_id"], ### check,
     stored_as_scd_type = "2"
 )
 
@@ -259,7 +269,7 @@ dlt.apply_changes(
     target = "silver_hashtags",
     source = "silver_hashtags_clean",
     keys = "hashtag_id",
-    source = "first_time_use",
+    sequence_by= "first_time_use",
     stored_as_scd_type = "2"
 )
 
@@ -274,10 +284,10 @@ dlt.apply_changes(
 )
 
 
-@dlt.expectations("post_id", "post_id IS NOT NULL")
-@dlt.expectation("post_id>0", "post_id > 0 ")
-@dlt.expectation("hashtag_id", "hashtag_id IS NOT NULL")
-@dlt.expectation("hashtag_id>0", "hashtag_id > 0")
+@dlt.expect("post_id", "post_id IS NOT NULL")
+@dlt.expect("post_id>0", "post_id > 0 ")
+@dlt.expect("hashtag_id", "hashtag_id IS NOT NULL")
+@dlt.expect("hashtag_id>0", "hashtag_id > 0")
 
 def silver_post_hashtags():
     return(
@@ -297,7 +307,87 @@ dlt.apply_changes(
     target = "silver_post_hashtags",
     source = "silver_post_hashtags_clean",
     keys = ["post_id", "hashtag_id"],
-    sequence = ["post_id", "hashtag_id"]
+    sequence_by = ["post_id", "hashtag_id"],
+    stored_as_scd_type = "2"
+)
+
+
+
+
+@dlt.table(
+    name = "silver_comments_clean",
+    comment = "silver table for comments",
+    table_properties = {"schema" : "silver"}
+)
+
+@dlt.expect("comment_id", "comment_id IS NOT NULL")
+@dlt.expect("comment_id>0", "comment_id > 0")
+@dlt.expect("author_account_id", "author_account_id IS NOT NULL")
+@dlt.expect("author_account_id>0", "author_account_id > 0")
+@dlt.expect("post_id", "post_id IS NOT NULL")
+@dlt.expect("post_id>0", "post_id > 0")
+
+def silver_comments():
+    return(
+        spark.readStream.table("LIVE.bronze_comments")
+        .select("*")
+        .withColumn("comment_text", F.trim(F.col("comment_text")))
+        .withColumn("is_image", F.col("is_image")).cast("int")
+        .withColumn("status", F.when(F.col("status") == 'n/d', None).otherwise(F.col("status")))
+    )
+
+dlt.create_streaming_table(
+    name = "silver_comments",
+    comment = "SCD Type 2 for comments",
+    table_properties = {"schema" : "silver"}
+)
+
+
+dlt.apply_changes(
+    target = "silver_comments",
+    source = "silver_comments_clean",
+    keys = "comment_id",
+    sequence_by = "created_at_time",
+    stored_as_scd_type = "2"
+)
+
+
+
+
+@dlt.table(
+    name = "silver_reactions_clean",
+    comment = "silver table for reactions",
+    table_properties = {"schema" : "silver"}
+)
+
+
+
+@dlt.expect("reacted_at_time", "reacted_at_time IS NOT NULL")
+@dlt.expect("account_id", "account_id IS NOT NULL")
+@dlt.expect("account_id>0", "account_id > 0")
+@dlt.expect("post_id", "post_id IS NOT NULL")
+@dlt.expect("post_id>0", "post_id > 0")
+def silver_reactions():
+    return(
+        spark.readStream.table("LIVE.bronze_reactions")
+        .select("*")
+        .withColumn("reaction_type", F.when(F.col("reaction_type") == 'n/d',None).otherwise(F.col("reaction_type")))
+    )
+
+
+dlt.create_streaming_table(
+    name = "silver_reactions",
+    comment = "SCD Type 2 for reactions",
+    table_properties = {"schema" : "silver"}
+)
+
+
+dlt.apply_changes(
+    target = "silver_reactions",
+    source = "silver_reactions_clean",
+    keys = "reaction_id",
+    sequence_by = "reacted_at_time",
+    stored_as_scd_type = "2"
 )
 
 
@@ -308,8 +398,7 @@ dlt.apply_changes(
 
 
 
-
-
+'''
 
 
 

@@ -5,7 +5,9 @@ import dlt
 # Creating bronze table for account_user
 @dlt.table(name = "bronze_account_user",
           table_properties = {"schema" : "bronze"},
+                            #"delta.enableChangeDataFeed": "true"},
           comment = "Bronze table for account_user")
+          
 def bronze_account_user():
     return(
         spark.read
@@ -20,10 +22,10 @@ def bronze_account_user():
                 F.current_timestamp().alias("ingest_time")
         
         )
-    
+        
 )
     
-
+'''
 @dlt.table(
     name = "time",
     comment = "table with time"
@@ -306,7 +308,7 @@ def account_user_details():
 
 
 
-
+'''
 
 
 
