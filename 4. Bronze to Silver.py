@@ -55,13 +55,14 @@ dlt.apply_changes(
 
 
 
-'''
+
 ### follow_relationship
 
 @dlt.table(
     name = "silver_follow_clean",
     table_properties = {"schema" : "silver"},
-    comment = "silver table for follow_relationship"
+    comment = "silver table for follow_relationship",
+    temporary = True
     
 )
 
@@ -69,7 +70,9 @@ dlt.apply_changes(
 @dlt.expect("date_null", "followed_at_time_id IS NOT NULL")
 def silver_follow_clean():
     return(
-        spark.read.table("LIVE.bronze_follow_relationship")
+        spark.readStream
+        .option("readChangeFeed", "true")
+        .table("LIVE.bronze_follow_relationship")
         .select("*")
     )
 
@@ -85,8 +88,10 @@ dlt.apply_changes(
     target = "silver_follow",
     source = "silver_follow_clean",
     keys = ["follower_account_id", "followed_account_id"],
-    sequence_by = "followed_at_time_id", # -> check,
-    stored_as_scd_type = "2"
+    sequence_by = "ingest_time", # -> check, TUTAJ 
+    stored_as_scd_type = "2",
+    track_history_column_list = ["followed_at_time_id","status"],
+    except_column_list = ["ingest_time"]
 )
 
 
@@ -100,7 +105,8 @@ dlt.apply_changes(
 @dlt.table(
     name = "silver_advertisers_clean",
     comment = "silver table for advertisers",
-    table_properties = {"schema" : "silver"}
+    table_properties = {"schema" : "silver"},
+    temporary = True
 )
 
 @dlt.expect("advertiser_id", "advertiser_id IS NOT NULL")
@@ -108,10 +114,12 @@ dlt.apply_changes(
 @dlt.expect("billing_status", "billing_status IS NOT NULL")
 def silver_advertisers():
     return(
-        spark.readStream.table("LIVE.bronze_advertisers")
+        spark.readStream
+        .option("readChangeFeed", "true")
+        .table("LIVE.bronze_advertisers")
         .select("*")
         .withColumn("destination_group", F.regexp_replace(F.col("destination_group"),"_",' '))
-        .withColumn("billing_account_code", F.regexp_replace(Fo.col("billing_account_code"), "[^0-9]", ' '))
+        .withColumn("billing_account_code", F.regexp_replace(F.col("billing_account_code"), "[^0-9]", ' '))
     )
 
 
@@ -125,8 +133,11 @@ dlt.create_streaming_table(
 dlt.apply_changes(
     target = "silver_advertisers",
     source = "silver_advertisers_clean",
-    keys = "advertiser_id",
-    sequence_by = "advertiser_id" # check 
+    keys = ["advertiser_id"],
+    sequence_by = "ingest_time", # check ,
+    stored_as_scd_type = "2",
+    track_history_column_list = ["advertiser_name", "destination_group", "billing_account_code", "billing_status"],
+    except_column_list = ["ingest_time"]
 )
 
 
@@ -135,31 +146,35 @@ dlt.apply_changes(
 @dlt.table(
     name = "silver_advertisements_clean",
     comment = "silver table for advertisements",
-    table_properties = {"schema" : "silver"}
+    table_properties = {"schema" : "silver"},
+    temporary = True
 )
+###
 
-@dlt.expect("adveriser_id", "adveriser_id IS NOT NULL")
-@dlt.expect("advertisement_id","adverisement_id IS NOT NULL")
-@dlt.expect("price", "price > 0")
-@dlt.expect("advertisement_id", "advertisement_id > 0")
-@dlt.expect("advertisement_id", "adverisement_id > 0")
+@dlt.expect("2_advertiser_id", "advertiser_id IS NOT NULL")
+@dlt.expect("advertisement_id","advertisement_id IS NOT NULL")
+@dlt.expect("price_USD", "price_USD > 0")
+@dlt.expect("advertisement_id>0", "advertisement_id > 0")
 @dlt.expect("end_at", "end_at IS NOT NULL")
-def silver_advertisements():
+def silver_advertisements_clean():
     characters_original = "ąćęłńóśźżĄĆĘŁŃÓŚŹŻñáéíóúüÑÁÉÍÓÚÜ"
     characters_replace = "acelnoszzACELNOSZZnaeeiouuNAEEIOUU"
     return(
-        spark.readStream.table("LIVE.bronze_advertisements")
+        spark.readStream
+        .option("readChangeFeed", "true")
+        .table("LIVE.bronze_advertisements")
         .select("*")
         .withColumn("ad_name", F.regexp_replace(F.col("ad_name"), "_", ' '))
-        .withColumn("Euro_price", F.col("price") * 0.9)
+        .withColumn("Euro_price", F.col("price_USD").cast("float") * F.lit(0.9))
         .withColumn("pricing_model", F.when(F.col("pricing_model") == 'n/d', None).otherwise(F.col("pricing_model")))
         .withColumn("ad_name", F.translate(F.col("ad_name"), characters_original, characters_replace))
         .withColumn("ad_title", F.translate(F.col("ad_title"), characters_original, characters_replace))
         .withColumn("ad_text", F.translate(F.col("ad_text"), characters_original, characters_replace))
     )
 
+
 dlt.create_streaming_table(
-    name = "silver_adverisements",
+    name = "silver_advertisements",
     comment = "SCD Type 2 advertisements",
     table_properties = {"schema" : "silver"}
 )
@@ -168,17 +183,23 @@ dlt.create_streaming_table(
 dlt.apply_changes(
     target = "silver_advertisements",
     source=  "silver_advertisements_clean",
-    keys = "advertisement_id",
-    sequence_by = "created_at_time",
-    stored_as_scd_type = "2"
+    keys = ["advertisement_id"],
+    sequence_by = "ingest_time",
+    stored_as_scd_type = "2",
+    track_history_column_list = ["advertiser_id", "ad_name", "ad_title", "price_USD", "pricing_model", "start_at", "end_at", "ad_text", "landing_url", "status", "created_at_time"],
+    except_column_list = ["ingest_time"]
 )
+
+
+
 
 
 
 @dlt.table(
     name = "silver_posts_clean",
     comment = "silver table for posts",
-    table_properties = {"schema" : "silver"}
+    table_properties = {"schema" : "silver"},
+    temporary = True
 )
 
 @dlt.expect("post_id", "post_id IS NOT NULL")
@@ -187,7 +208,9 @@ dlt.apply_changes(
 @dlt.expect("created_at_time", "created_at_time IS NOT NULL")
 def silver_posts():
     return(
-        spark.readStream.table("LIVE.bronze_posts")
+        spark.readStream
+        .option("readChangeFeed", "true")
+        .table("LIVE.bronze_posts")
         .select("*")
         .withColumn("post_text", F.trim(F.col("post_text")))
         .withColumn("visibility", F.when(F.col("visibility") =='n/d', None).otherwise(F.col("visibility")))
@@ -203,27 +226,35 @@ dlt.create_streaming_table(
 dlt.apply_changes(
     target = "silver_posts",
     source = "silver_posts_clean",
-    keys = "post_id",
-    sequence_by = "created_at_time",
-    stored_as_scd_type = "2"
+    keys = ["post_id"],
+    sequence_by = "ingest_time",
+    stored_as_scd_type = "2",
+    track_history_column_list = ["post_text", "author_id", "visibility", "created_at_time", "reply_to_post_time"],
+    except_column_list = ["ingest_time"]
 )
 
 
 
 
 @dlt.table(
-    name = "silver_post_media",
-    comment = "silver_post_media_clean",
-    table_properties = {"schema" : "silver"}
+    name = "silver_post_media_clean",
+    comment = "silver table for posts",
+    table_properties = {"schema" : "silver"},
+    temporary = True
 )
 
-@dlt.expect("media_url", "media_url IS NOT NULL")
-@dlt.expect("post_id", "post_id IS NOT NULL")
-def silver_post_media():
+@dlt.expect("media_storage", "media_storage IS NOT NULL")
+@dlt.expect("2_post_id", "post_id IS NOT NULL")
+@dlt.expect("media_type", "media_type IS NOT NULL")
+def silver_post_media_clean():
     return(
-        spark.readStream.table("LIVE.bronze_post_media")
+        spark.readStream
+        .option("readChangeFeed", "true")
+        .table("LIVE.bronze_post_media")
         .select("*")
     )
+
+
 
 dlt.create_streaming_table(
     name = "silver_post_media",
@@ -235,9 +266,11 @@ dlt.create_streaming_table(
 dlt.apply_changes(
     target = "silver_post_media",
     source = "silver_post_media_clean",
-    keys = ["media_id", "post_id"], ### check
-    sequence_by = ["media_id", "post_id"], ### check,
-    stored_as_scd_type = "2"
+    keys = ["media_id"], ### check
+    sequence_by = "ingest_time", ### check,
+    stored_as_scd_type = "2",
+    track_history_column_list = ["post_id","media_type", "media_storage", "duration_sec"],
+    except_column_list = ["ingest_time"]
 )
 
 
@@ -245,7 +278,8 @@ dlt.apply_changes(
 @dlt.table(
     name = "silver_hashtags_clean",
     comment = "silver table for hashtags",
-    table_properties = {"schema" : "silver"}
+    table_properties = {"schema" : "silver"},
+    temporary = True
 )
 
 @dlt.expect("hashtag_id", "hashtag_id IS NOT NULL")
@@ -253,7 +287,9 @@ dlt.apply_changes(
 @dlt.expect("first_use_time", "first_use_time IS NOT NULL")
 def silver_hashtags():
     return(
-        spark.readStream.table("LIVE.bronze_hashtags")
+        spark.readStream
+        .option("readChangeFeed", "true")
+        .table("LIVE.bronze_hashtags")
         .select("*")
         .withColumn("tag_text", F.trim(F.col("tag_text")))
     )
@@ -268,9 +304,11 @@ dlt.create_streaming_table(
 dlt.apply_changes(
     target = "silver_hashtags",
     source = "silver_hashtags_clean",
-    keys = "hashtag_id",
-    sequence_by= "first_time_use",
-    stored_as_scd_type = "2"
+    keys = ["hashtag_id"],
+    sequence_by= "ingest_time",
+    stored_as_scd_type = "2",
+    track_history_column_list = ["tag_text", "first_use_time"],
+    except_column_list = ["ingest_time"]
 )
 
 
@@ -280,7 +318,8 @@ dlt.apply_changes(
 @dlt.table(
     name = "silver_post_hashtags_clean",
     comment = "silver table for post_hashtags",
-    table_properties = {"schema" : "silver"}
+    table_properties = {"schema" : "silver"},
+    temporary = True
 )
 
 
@@ -291,7 +330,9 @@ dlt.apply_changes(
 
 def silver_post_hashtags():
     return(
-        spark.readStream.table("LIVE.bronze_post_hashtags")
+        spark.readStream
+        .option("readChangeFeed", "true")
+        .table("LIVE.bronze_post_hashtags")
         .select("*")
     )
 
@@ -306,9 +347,11 @@ dlt.create_streaming_table(
 dlt.apply_changes(
     target = "silver_post_hashtags",
     source = "silver_post_hashtags_clean",
-    keys = ["post_id", "hashtag_id"],
-    sequence_by = ["post_id", "hashtag_id"],
-    stored_as_scd_type = "2"
+    keys = ["post_id"],
+    sequence_by = "ingest_time",
+    stored_as_scd_type = "2",
+    track_history_column_list = ["hashtag_id"],
+    except_column_list = ["ingest_time"]
 )
 
 
@@ -317,22 +360,25 @@ dlt.apply_changes(
 @dlt.table(
     name = "silver_comments_clean",
     comment = "silver table for comments",
-    table_properties = {"schema" : "silver"}
+    table_properties = {"schema" : "silver"},
+    temporary = True
 )
 
 @dlt.expect("comment_id", "comment_id IS NOT NULL")
 @dlt.expect("comment_id>0", "comment_id > 0")
 @dlt.expect("author_account_id", "author_account_id IS NOT NULL")
 @dlt.expect("author_account_id>0", "author_account_id > 0")
-@dlt.expect("post_id", "post_id IS NOT NULL")
-@dlt.expect("post_id>0", "post_id > 0")
+@dlt.expect("3_post_id", "post_id IS NOT NULL")
+@dlt.expect("3_post_id>0", "post_id > 0")
 
 def silver_comments():
     return(
-        spark.readStream.table("LIVE.bronze_comments")
+        spark.readStream
+        .option("readChangeFeed", "true")
+        .table("LIVE.bronze_comments")
         .select("*")
         .withColumn("comment_text", F.trim(F.col("comment_text")))
-        .withColumn("is_image", F.col("is_image")).cast("int")
+        .withColumn("is_image", F.col("is_image").cast("int"))
         .withColumn("status", F.when(F.col("status") == 'n/d', None).otherwise(F.col("status")))
     )
 
@@ -346,10 +392,15 @@ dlt.create_streaming_table(
 dlt.apply_changes(
     target = "silver_comments",
     source = "silver_comments_clean",
-    keys = "comment_id",
-    sequence_by = "created_at_time",
-    stored_as_scd_type = "2"
+    keys = ["comment_id"],
+    sequence_by = "ingest_time",
+    stored_as_scd_type = "2",
+    track_history_column_list = ["comment_text","status"],
+    except_column_list = ["ingest_time"]
 )
+
+
+
 
 
 
@@ -357,7 +408,8 @@ dlt.apply_changes(
 @dlt.table(
     name = "silver_reactions_clean",
     comment = "silver table for reactions",
-    table_properties = {"schema" : "silver"}
+    table_properties = {"schema" : "silver"},
+    temporary = True
 )
 
 
@@ -369,7 +421,9 @@ dlt.apply_changes(
 @dlt.expect("post_id>0", "post_id > 0")
 def silver_reactions():
     return(
-        spark.readStream.table("LIVE.bronze_reactions")
+        spark.readStream
+        .option("readChangeFeed", "true")
+        .table("LIVE.bronze_reactions")
         .select("*")
         .withColumn("reaction_type", F.when(F.col("reaction_type") == 'n/d',None).otherwise(F.col("reaction_type")))
     )
@@ -385,20 +439,12 @@ dlt.create_streaming_table(
 dlt.apply_changes(
     target = "silver_reactions",
     source = "silver_reactions_clean",
-    keys = "reaction_id",
-    sequence_by = "reacted_at_time",
-    stored_as_scd_type = "2"
+    keys = ["reaction_id"],
+    sequence_by = "ingest_time",
+    stored_as_scd_type = "2",
+    track_history_column_list = ["reaction_type"],
+    except_column_list = ["ingest_time"]
 )
-
-
-
-
-
-
-
-
-
-'''
 
 
 

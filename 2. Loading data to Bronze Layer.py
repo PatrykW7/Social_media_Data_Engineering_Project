@@ -25,7 +25,7 @@ def bronze_account_user():
         
 )
     
-'''
+
 @dlt.table(
     name = "time",
     comment = "table with time"
@@ -45,6 +45,7 @@ def time():
             )
         
     )
+
 
 
 @dlt.table(
@@ -90,9 +91,10 @@ def bronze_advertisers():
         .load()
         .select(
             "*",
-            F.current_timestamp().alias("ingest_data")
+            F.current_timestamp().alias("ingest_time")
         
     ))
+
 
 
 @dlt.table(
@@ -116,6 +118,7 @@ def bronze_advertisements():
             F.current_timestamp().alias("ingest_time")
         
     ))
+
 
 
 
@@ -264,11 +267,11 @@ def bronze_reactions():
         
     ))
 
-
+'''
 # LOAD JSON FILES + FILES TRANSFORM 
 
 @dlt.view()
-def raw_account_user_details():
+def bronze_account_user_details():
     return (
         spark.readStream
             .format("cloudFiles")
@@ -283,9 +286,9 @@ def raw_account_user_details():
     name = "account_user_details",
     comment = "transformed table with json files"
 )
-def account_user_details():
+def silver_account_user_details():
     return (
-        dlt.read_stream("raw_account_user_details")
+        dlt.read_stream("bronze_account_user_details")
             .select(
                 "userId",
                 F.date_format(F.make_date(F.col("accountMetadata.accountAge.createdYear").cast("int"), F.col("accountMetadata.accountAge.createdMonth").cast("int"), F.lit(1)),'yyyy-MM').alias("account_creation_year_month"),
