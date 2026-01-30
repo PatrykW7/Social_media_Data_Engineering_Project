@@ -402,9 +402,6 @@ dlt.apply_changes(
 
 
 
-
-
-
 @dlt.table(
     name = "silver_reactions_clean",
     comment = "silver table for reactions",
@@ -413,13 +410,12 @@ dlt.apply_changes(
 )
 
 
-
 @dlt.expect("reacted_at_time", "reacted_at_time IS NOT NULL")
 @dlt.expect("account_id", "account_id IS NOT NULL")
 @dlt.expect("account_id>0", "account_id > 0")
-@dlt.expect("post_id", "post_id IS NOT NULL")
-@dlt.expect("post_id>0", "post_id > 0")
-def silver_reactions():
+@dlt.expect("3_post_id", "post_id IS NOT NULL")
+@dlt.expect("3_post_id>0", "post_id > 0")
+def silver_reactions_clean():
     return(
         spark.readStream
         .option("readChangeFeed", "true")
