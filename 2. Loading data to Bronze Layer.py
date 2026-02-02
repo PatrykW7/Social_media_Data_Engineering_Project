@@ -263,55 +263,89 @@ def bronze_reactions():
         .load()
         .select(
             "*",
+            #.withColumn("ingest_time", F.current_timestamp()) why it's not working 
             F.current_timestamp().alias("ingest_time")
         
     ))
 
-'''
+
 # LOAD JSON FILES + FILES TRANSFORM 
 
-@dlt.view()
+from pyspark.sql.types import StructType, StructField, StringType, IntegerType, BooleanType, DoubleType
+
+json_schema = StructType([
+    StructField("userId", StringType(), True),
+    StructField("friendsCount", IntegerType(), True),
+    StructField("listedCount", IntegerType(), True),
+    StructField("location", StringType(), True),
+    StructField("rawDescription", StringType(), True),
+    # Zagnieżdżona struktura accountMetadata
+    StructField("accountMetadata", StructType([
+        StructField("accountAge", StructType([
+            StructField("createdYear", StringType(), True),
+            StructField("createdMonth", StringType(), True),
+            StructField("accountAgeCategory", StringType(), True)
+        ])),
+        StructField("verificationStatus", StructType([
+            StructField("isVerified", BooleanType(), True),
+            StructField("verificationConfidence", DoubleType(), True)
+        ]))
+    ])),
+    # Zagnieżdżona struktura analyticsFlags
+    StructField("analyticsFlags", StructType([
+        StructField("potentialBot", BooleanType(), True),
+        StructField("potentialInfluencer", BooleanType(), True)
+    ])),
+    # Zagnieżdżona struktura profileAnalysis
+    StructField("profileAnalysis", StructType([
+        StructField("profileCompletenessScore", DoubleType(), True)
+    ])),
+    # Zagnieżdżona struktura networkFeatures
+    StructField("networkFeatures", StructType([
+        StructField("networkType", StringType(), True)
+    ]))
+])
+
+@dlt.table(
+    name = "bronze_account_user_details",
+    table_properties = {
+        "schema":"bronze"},
+    comment = "bronze table for account_user_details"
+)
 def bronze_account_user_details():
     return (
         spark.readStream
             .format("cloudFiles")
-            .option("cloudFiles.format","json")
-            .option("cloudFiles.inferColumnTypes","true")
+            .option("cloudFiles.format", "json")
+            .schema(json_schema)
+            #.option("cloudFiles.inferColumnTypes","true")
             .option("multiline","true")
             .load("/Volumes/content/landing/json_files_data/")
+            .select(
+                "*",
+                F.current_timestamp().alias("ingest_time")
+            )
+        )
+
+'''
+def bronze_account_user_details():
+    return (
+        spark.read
+            .format("cloudFiles")
+            .option("cloudFiles.format","json")
+            #.option("cloudFiles.inferColumnTypes","true")
+            .option("multiline","true")
+            .load("/Volumes/content/landing/json_files_data/")
+            .select(
+                "*",
+                F.current_timestamp().alias("ingest_time")
+            )
         )
 
 
-@dlt.table(
-    name = "account_user_details",
-    comment = "transformed table with json files"
-)
-def silver_account_user_details():
-    return (
-        dlt.read_stream("bronze_account_user_details")
-            .select(
-                "userId",
-                F.date_format(F.make_date(F.col("accountMetadata.accountAge.createdYear").cast("int"), F.col("accountMetadata.accountAge.createdMonth").cast("int"), F.lit(1)),'yyyy-MM').alias("account_creation_year_month"),
-                "accountMetadata.accountAge.accountAgeCategory",
-                "accountMetadata.verificationStatus.isVerified",
-                "accountMetadata.verificationStatus.verificationConfidence",
-                "analyticsFlags.potentialBot",
-                "analyticsFlags.potentialInfluencer",
-                "friendsCount",
-                "listedCount",
-                "location",
-                "rawDescription",
-                "profileAnalysis.profileCompletenessScore",
-                "networkFeatures.networkType"
-            )
-            .withColumn("accountAgeCategory", F.regexp_replace("accountAgeCategory", "_", ' ')) \
-            .withColumn("networkType", F.regexp_replace("networkType", "_", ' '))
-
-    )
-
-
-
 '''
+
+
 
 
 
