@@ -327,7 +327,6 @@ dlt.apply_changes(
 @dlt.expect("post_id>0", "post_id > 0 ")
 @dlt.expect("hashtag_id", "hashtag_id IS NOT NULL")
 @dlt.expect("hashtag_id>0", "hashtag_id > 0")
-
 def silver_post_hashtags():
     return(
         spark.readStream
@@ -443,10 +442,68 @@ dlt.apply_changes(
 )
 
 
+@dlt.table(
+    name = "silver_account_user_details_clean",
+    comment = "transformed table with json files",
+    table_properties = {"schema" : "silver"},
+    temporary = True
+)
 
 
+def silver_account_user_details_clean():
+    return (
+        spark.readStream
+        .option("readChangeFeed", "true")
+        .table("LIVE.bronze_account_user_details")
+            .select(
+                "userId",
+                F.date_format(F.make_date(F.col("accountMetadata.accountAge.createdYear").cast("int"), F.col("accountMetadata.accountAge.createdMonth").cast("int"), F.lit(1)),'yyyy-MM').alias("account_creation_year_month"),
+                "accountMetadata.accountAge.accountAgeCategory",
+                "accountMetadata.verificationStatus.isVerified",
+                "accountMetadata.verificationStatus.verificationConfidence",
+                "analyticsFlags.potentialBot",
+                "analyticsFlags.potentialInfluencer",
+                "friendsCount",
+                "listedCount",
+                "location",
+                "rawDescription",
+                "profileAnalysis.profileCompletenessScore",
+                "networkFeatures.networkType",
+                "ingest_time"
+            )
+            .withColumn("accountAgeCategory", F.regexp_replace("accountAgeCategory", "_", ' ')) \
+            .withColumn("networkType", F.regexp_replace("networkType", "_", ' '))
+
+    )
 
 
+dlt.create_streaming_table(
+    name = "silver_account_user_details",
+    table_properties = {"schema" : "silver"},
+    comment = "SCD Type 2 for account_user_details"
+)
+
+dlt.apply_changes(
+    target = "silver_account_user_details",
+    source = "silver_account_user_details_clean",
+    keys = ["userId"],
+    sequence_by = "ingest_time",
+    stored_as_scd_type = "2",
+    track_history_column_list = ["userId", "accountAgeCategory",
+                "isVerified",
+                "verificationConfidence",
+                "potentialBot",
+                "potentialInfluencer",
+                "friendsCount",
+                "listedCount",
+                "location",
+                "rawDescription",
+                "profileCompletenessScore",
+                "networkType",
+                "accountAgeCategory",
+                "networkType"],
+    except_column_list = ["ingest_time"]
+)
 
 
 
