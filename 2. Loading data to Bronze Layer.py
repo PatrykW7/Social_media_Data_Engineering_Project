@@ -1,5 +1,6 @@
 # Databricks notebook source
 from pyspark.sql import functions as F
+from pyspark.sql.types import StructType, StructField, StringType, IntegerType, BooleanType, DoubleType
 import dlt
 
 # Creating bronze table for account_user
@@ -271,7 +272,7 @@ def bronze_reactions():
 
 # LOAD JSON FILES + FILES TRANSFORM 
 
-from pyspark.sql.types import StructType, StructField, StringType, IntegerType, BooleanType, DoubleType
+
 
 json_schema = StructType([
     StructField("userId", StringType(), True),
