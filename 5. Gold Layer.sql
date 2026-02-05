@@ -56,7 +56,7 @@ ORDER BY 1
 
 CREATE OR REFRESH MATERIALIZED VIEW content.target.gold_account_master_view AS 
 SELECT acc.account_id, acc.account_name, acc.is_group, det.accountAgeCategory, det.profileCompletenessScore, det.friendsCount, det.isVerified,
-det.verificationConfidence, det.potentialInfluencer FROM content.target.silver_account_user acc 
+det.verificationConfidence, det.potentialInfluencer, det.potentialBot FROM content.target.silver_account_user acc 
 LEFT JOIN content.target.silver_account_user_details det ON acc.account_id = det.userId
 
 ;
