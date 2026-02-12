@@ -1,6 +1,6 @@
 from pyspark.sql import functions as F, Window
 from pyspark.sql.types import StringType
-'''
+
 def bronze_account_user():
     return (
         spark.read
@@ -68,19 +68,70 @@ CREATE TABLE IF NOT EXISTS content_job.silver.account_user_scd_type2 (
 USING DELTA;
 """
 
-spark.sql(sql_code)
-'''
+#spark.sql(sql_code)
+
 #df2 = spark.table("content_job.silver.account_user_scd_type2")
 
 #df2.display()
 
-res = spark.sql("SELECT * FROM df_sha256_account_user")
-res.display()
+stg = spark.sql("SELECT * FROM df_sha256_account_user")
+#stg.display()
 
 # TO DO TOMORROW -> FINISH THE MERGE content_job.silver.account_user_scd_type2 + df_sha256_account_user (tempView)
-#sql_code = """
-#MERGE INTO content_job.silver.account_user_scd_type2
-#USING df_sha256_account_user
-#ON 
 
-#"""
+sql_code_ = """
+MERGE INTO content_job.silver.account_user_scd_type2 AS target
+USING (
+    SELECT 
+    account_id, account_name, is_group, first_name, last_name, display_name, profile_url, profile_image_storage, 
+    profile_baner_storage, login, password, second_mail, sha_key, ingest_time AS valid_from, timestamp('9999-12-31 00:00:00') AS valid_to, 
+    true AS is_current, 'UPSERT' AS action FROM df_sha256_account_user
+
+    UNION ALL
+
+    SELECT 
+    account_id, account_name, is_group, first_name, last_name, display_name, profile_url, profile_image_storage, 
+    profile_baner_storage, login, password, second_mail, sha_key, ingest_time AS valid_from, timestamp('9999-12-31 00:00:00') AS valid_to, 
+    true AS is_current, 'INSERT_CHANGED' AS action FROM df_sha256_account_user
+
+    ) AS src
+
+ON  target.account_id = src.account_id 
+AND target.is_current = true
+AND src.action = 'UPSERT' 
+
+WHEN MATCHED AND target.sha_key <> src.sha_key THEN UPDATE SET
+    target.is_current = false,
+    target.valid_to = src.valid_from 
+
+WHEN NOT MATCHED AND (
+    src.action = 'UPSERT' 
+    OR (src.action = 'INSERT_CHANGED')
+    )
+    THEN INSERT (
+        account_id, account_name, is_group, first_name, last_name, display_name, profile_url, profile_image_storage, 
+        profile_baner_storage, login, password, second_mail, sha_key, valid_from, valid_to, 
+        is_current
+        )
+        VALUES (
+        src.account_id, src.account_name, src.is_group, src.first_name, src.last_name, src.display_name, src.profile_url, src.profile_image_storage, 
+        src.profile_baner_storage, src.login, src.password, src.second_mail, src.sha_key, src.valid_from, src.valid_to, 
+        true
+        )
+
+"""
+
+
+spark.sql(sql_code_)
+
+
+
+
+
+
+
+
+
+
+
+
