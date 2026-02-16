@@ -152,6 +152,7 @@ spark.sql(sql_code3)
 '''
 
 ########################### ACCOUNT_DETAILS #############################
+'''
 json_schema = StructType([
     StructField("userId", StringType(), True),
     StructField("friendsCount", IntegerType(), True),
@@ -207,6 +208,39 @@ def bronze_account_details():
 stg = bronze_account_details()#.filter(F.col("userId").isNotNull())
 # stg.display()
 
+stg.writeTo("content_job.bronze.bronze_account_details").createOrReplace()
+
+'''
+
+stg = spark.read.table("content_job.bronze.bronze_account_details")
+
+stg = stg.select(
+                "userId",
+                F.date_format(F.make_date(F.col("accountMetadata.accountAge.createdYear").cast("int"), F.col("accountMetadata.accountAge.createdMonth").cast("int"), F.lit(1)),'yyyy-MM').alias("account_creation_year_month"),
+                "accountMetadata.accountAge.accountAgeCategory",
+                "accountMetadata.verificationStatus.isVerified",
+                "accountMetadata.verificationStatus.verificationConfidence",
+                "analyticsFlags.potentialBot",
+                "analyticsFlags.potentialInfluencer",
+                "friendsCount",
+                "listedCount",
+                "location",
+                "rawDescription",
+                "profileAnalysis.profileCompletenessScore",
+                "networkFeatures.networkType",
+                "ingest_time"
+            )
+            #.withColumn("accountAgeCategory", F.regexp_replace("accountAgeCategory", "_", ' ')) \
+            #.withColumn("networkType", F.regexp_replace("networkType", "_", ' '))
+
+
+stg = (stg
+        .withColumn("accountAgeCategory", F.regexp_replace("accountAgeCategory", "_", ' '))
+        .withColumn("networkType", F.regexp_replace("networkType", "_", ' '))
+)
+
+
+
 w = Window.partitionBy('userId').orderBy(stg.ingest_time.desc())
 stg = stg.withColumn("rn", F.row_number().over(w)).filter(F.col("rn") == 1).drop("rn")
 
@@ -221,4 +255,50 @@ tracked_cols = [col for col in cols if col not in ['userId', 'ingest_time']]
 
 df_sha256 = stg.withColumn("sha_key", F.sha2(F.concat_ws("|", *[F.col(col).cast(StringType()) for col in tracked_cols]), 256))
 
-#df_sha256.display()
+
+df_sha256.createOrReplaceTempView("df_sha256_account_details")
+
+sql_code4 = """
+CREATE TABLE IF NOT EXISTS content_job.silver.silver_account_details (
+    userId STRING,
+    account_creation_year_month STRING,
+    accountAgeCategory STRING,
+    isVerified BOOLEAN,
+    verificationConfidence DOUBLE,
+    potentialBot BOOLEAN,
+    potentialInfluenver BOOLEAN,
+    friendsCount INT,
+    listedCount INT,
+    location STRING,
+    rawDescription STRING,
+    profileCompletenessScore DOUBLE,
+    networkType STRING,
+    sha_key STRING,
+    valid_from TIMESTAMP,
+    valid_to TIMESTAMP,
+    is_current BOOLEAN
+    
+    
+)
+USING DELTA;
+
+"""
+
+spark.sql(sql_code4)
+
+
+# updating old records
+sql_code5 = """
+MERGE INTO content_job.silver.silver_account_details tgt    
+USING df_sha256_account_details AS src
+    ON tgt.userId = src.userId 
+    WHEN MATCHED AND tgt.is_current = true AND tgt.sha_key <> src.sha_key
+    THEN UPDATE SET tgt.valid_to = src.ingest_time,
+         tgt.is_current = false
+"""
+
+spark.sql(sql_code5)
+
+
+
+
