@@ -2,7 +2,7 @@ from pyspark.sql import functions as F, Window
 from pyspark.sql.types import StringType
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, BooleanType, DoubleType
 
-'''
+
 def bronze_account_user():
     return (
         spark.read
@@ -28,47 +28,25 @@ w = Window.partitionBy("account_id").orderBy(F.col("ingest_time").desc())
 stg = stg.withColumn("rn", F.row_number().over(w)).filter(F.col("rn") == 1).drop("rn")
 stg.writeTo("content_job.bronze.bronze_account_user").createOrReplace()
 
-stg.display()
+#stg.display()
 
-stg = spark.table("content_job.bronze.bronze_account_user")
+#stg = spark.table("content_job.bronze.bronze_account_user")
 #stg.display()
 cols = stg.columns
 #a = a.remove("account_id")
 tracked_cols = [col for col in cols if col not in ["account_id","ingest_time"]]#cols.remove("account_id","ingest_time")
-print(tracked_cols)
+#print(tracked_cols)
 
 df_sha256 = stg.withColumn("sha_key", F.sha2(F.concat(F.col("account_id").cast(StringType()), F.col("account_name"), F.col("is_group").cast(StringType())),256))
      #.withColumn("sha_key", F.concat(*[F.col(col).cast(StringType()) for col in tracked_cols]))
      # NEED TO SPECIFY ALL TRACKED COLUMNS 
-df_sha256.display()
+#df_sha256.display()
 
-df_sha256.createOrReplaceTempView("df_sha256_account_user")
+df_sha256.writeTo("content_job.temp.df_sha256_account_user").createOrReplace()
 
 
 #df = spark.table("content_job.silver.silver_account_user")
 
-
-sql_code1 = """
-CREATE TABLE IF NOT EXISTS content_job.silver.account_user_scd_type2 (
-       account_id INT,
-       account_name STRING,
-       is_group BOOLEAN,
-       first_name STRING,
-       last_name STRING,
-       display_name STRING,
-       profile_url STRING,
-       profile_image_storage STRING,
-       profile_baner_storage STRING,
-       login STRING,
-       password STRING,
-       second_mail STRING,
-       sha_key STRING,
-       valid_from TIMESTAMP,
-       valid_to TIMESTAMP,
-       is_current BOOLEAN
-    )
-USING DELTA;
-"""
 
 #spark.sql(sql_code)
 
@@ -76,83 +54,15 @@ USING DELTA;
 
 #df2.display()
 
-stg = spark.sql("SELECT * FROM df_sha256_account_user")
+#stg = spark.sql("SELECT * FROM df_sha256_account_user")
 #stg.display()
 
 # TO DO TOMORROW -> FINISH THE MERGE content_job.silver.account_user_scd_type2 + df_sha256_account_user (tempView)
 
 
-# closing the outdated records 
-# This part of code will run even with empty target table 
-sql_code2 = """
-MERGE INTO content_job.silver.account_user_scd_type2  AS tgt
-USING (
-    SELECT *, true AS is_current FROM df_sha256_account_user) src 
-ON tgt.account_id = src.account_id
-AND tgt.is_current = true
-WHEN MATCHED AND tgt.sha_key <> src.sha_key THEN
-    UPDATE SET 
-    tgt.is_current = false,
-    tgt.valid_to = src.ingest_time
-
-"""
-
-
-spark.sql(sql_code2)
-
-# data insert 
-sql_code3 = """
-MERGE INTO content_job.silver.account_user_scd_type2 AS tgt
-USING df_sha256_account_user AS src
-ON tgt.account_id = src.account_id 
-AND tgt.is_current = true
-WHEN NOT MATCHED THEN 
-    INSERT (
-        account_id,
-        account_name,
-        is_group,
-        first_name,
-        last_name,
-        display_name,
-        profile_url,
-        profile_image_storage,
-        profile_baner_storage,
-        login,
-        password,
-        second_mail,
-        sha_key,
-        valid_from,
-        valid_to,
-        is_current
-        )
-    VALUES (
-        src.account_id,
-        src.account_name,
-        src.is_group,
-        src.first_name,
-        src.last_name,
-        src.display_name,
-        src.profile_url,
-        src.profile_image_storage,
-        src.profile_baner_storage,
-        src.login,
-        src.password,
-        src.second_mail,
-        src.sha_key,
-        src.ingest_time,
-        to_timestamp('9999-12-31 23:59:59'),
-        true
-        )
-
-
-"""
-
-
-spark.sql(sql_code3)
-'''
 
 ########################### ACCOUNT_DETAILS #############################
-'''
+
 json_schema = StructType([
     StructField("userId", StringType(), True),
     StructField("friendsCount", IntegerType(), True),
@@ -210,9 +120,9 @@ stg = bronze_account_details()#.filter(F.col("userId").isNotNull())
 
 stg.writeTo("content_job.bronze.bronze_account_details").createOrReplace()
 
-'''
 
-stg = spark.read.table("content_job.bronze.bronze_account_details")
+
+#stg = spark.read.table("content_job.bronze.bronze_account_details")
 
 stg = stg.select(
                 "userId",
@@ -256,48 +166,31 @@ tracked_cols = [col for col in cols if col not in ['userId', 'ingest_time']]
 df_sha256 = stg.withColumn("sha_key", F.sha2(F.concat_ws("|", *[F.col(col).cast(StringType()) for col in tracked_cols]), 256))
 
 
-df_sha256.createOrReplaceTempView("df_sha256_account_details")
+#print(f"dtypes: {df_sha256.dtypes}")
 
-sql_code4 = """
-CREATE TABLE IF NOT EXISTS content_job.silver.silver_account_details (
-    userId STRING,
-    account_creation_year_month STRING,
-    accountAgeCategory STRING,
-    isVerified BOOLEAN,
-    verificationConfidence DOUBLE,
-    potentialBot BOOLEAN,
-    potentialInfluenver BOOLEAN,
-    friendsCount INT,
-    listedCount INT,
-    location STRING,
-    rawDescription STRING,
-    profileCompletenessScore DOUBLE,
-    networkType STRING,
-    sha_key STRING,
-    valid_from TIMESTAMP,
-    valid_to TIMESTAMP,
-    is_current BOOLEAN
-    
-    
-)
-USING DELTA;
-
-"""
-
-spark.sql(sql_code4)
+df_sha256 = df_sha256.withColumn("location",
+                                 F.when(F.col("location") == '', None).otherwise(F.col("location")))
 
 
-# updating old records
-sql_code5 = """
-MERGE INTO content_job.silver.silver_account_details tgt    
-USING df_sha256_account_details AS src
-    ON tgt.userId = src.userId 
-    WHEN MATCHED AND tgt.is_current = true AND tgt.sha_key <> src.sha_key
-    THEN UPDATE SET tgt.valid_to = src.ingest_time,
-         tgt.is_current = false
-"""
+# df_sha256.display()
 
-spark.sql(sql_code5)
+
+df_sha256.writeTo("content_job.temp.df_sha256_account_details").createOrReplace()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
