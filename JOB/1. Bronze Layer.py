@@ -100,15 +100,15 @@ json_schema = StructType([
 # Here I'm using ba
 def bronze_account_details():
         return (
-            spark.read
-            #.format("cloudFiles")
-            .format("json")
+            spark.readStream
+            .format("cloudFiles")
+            #.format("json")
             #.option('format','delta')
-            #.option("cloudFiles.format", "json")
+            .option("cloudFiles.format", "json")
             .schema(json_schema)
             #.option("cloudFiles.inferColumnTypes","true")
             .option("multiline","true")
-            .load("/Volumes/content/landing/json_files_data/")
+            .load("/Volumes/content/landing/json_files_data/test_dane1.json")
             .select(
                 "*",
                 F.current_timestamp().alias("ingest_time")
@@ -118,7 +118,17 @@ def bronze_account_details():
 stg = bronze_account_details()#.filter(F.col("userId").isNotNull())
 # stg.display()
 
-stg.writeTo("content_job.bronze.bronze_account_details").createOrReplace()
+
+(stg.writeStream
+    .format("delta")
+    .outputMode("append")
+    .option("checkpointLocation", "/content/landing/checkpoints/bronze_account_details")
+    .trigger(availableNow = True)
+    .toTable("content_job.bronze.bronze_account_details")
+ )
+
+# stg.display()
+#stg.writeTo("content_job.bronze.bronze_account_details").createOrReplace()
 
 
 
@@ -150,10 +160,10 @@ stg = (stg
 )
 
 
-
+''' # FIGURE TO COMMENT THIS OR NOT
 w = Window.partitionBy('userId').orderBy(stg.ingest_time.desc())
 stg = stg.withColumn("rn", F.row_number().over(w)).filter(F.col("rn") == 1).drop("rn")
-
+'''
 #stg.display()
 
 cols = stg.columns
@@ -175,9 +185,15 @@ df_sha256 = df_sha256.withColumn("location",
 # df_sha256.display()
 
 
-df_sha256.writeTo("content_job.temp.df_sha256_account_details").createOrReplace()
+#df_sha256.writeTo("content_job.temp.df_sha256_account_details").createOrReplace()
 
-
+(df_sha256.writeStream
+          .format("delta")
+          .outputMode("append")
+          .option("checkpointLocation", "/content/landing/checkpoints/df_sha256_account_details")
+          .trigger(availableNow = True)
+          .toTable("content_job.temp.df_sha256_account_details")
+)
 
 
 
