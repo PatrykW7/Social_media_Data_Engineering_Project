@@ -64,7 +64,7 @@ df_sha256.writeTo("content_job.temp.df_sha256_account_user").createOrReplace()
 ########################### ACCOUNT_DETAILS #############################
 
 json_schema = StructType([
-    StructField("userId", StringType(), True),
+    StructField("userId", IntegerType(), True),
     StructField("friendsCount", IntegerType(), True),
     StructField("listedCount", IntegerType(), True),
     StructField("location", StringType(), True),
@@ -108,7 +108,7 @@ def bronze_account_details():
             .schema(json_schema)
             #.option("cloudFiles.inferColumnTypes","true")
             .option("multiline","true")
-            .load("/Volumes/content/landing/json_files_data/test_dane1.json")
+            .load("/Volumes/content/landing/json_files_data/*.json")
             .select(
                 "*",
                 F.current_timestamp().alias("ingest_time")
@@ -122,7 +122,7 @@ stg = bronze_account_details()#.filter(F.col("userId").isNotNull())
 (stg.writeStream
     .format("delta")
     .outputMode("append")
-    .option("checkpointLocation", "/content/landing/checkpoints/bronze_account_details")
+    .option("checkpointLocation", "/content/landing/checkpoints/bronze_acc_detail")
     .trigger(availableNow = True)
     .toTable("content_job.bronze.bronze_account_details")
  )
@@ -182,7 +182,10 @@ df_sha256 = df_sha256.withColumn("location",
                                  F.when(F.col("location") == '', None).otherwise(F.col("location")))
 
 
-# df_sha256.display()
+#df_sha256_count = (df_sha256.groupBy().count())
+#display(df_sha256_count)
+
+#df_sha256.display()
 
 
 #df_sha256.writeTo("content_job.temp.df_sha256_account_details").createOrReplace()
@@ -190,11 +193,10 @@ df_sha256 = df_sha256.withColumn("location",
 (df_sha256.writeStream
           .format("delta")
           .outputMode("append")
-          .option("checkpointLocation", "/content/landing/checkpoints/df_sha256_account_details")
+          .option("checkpointLocation", "/content/landing/checkpoints/df_sha_account_details")
           .trigger(availableNow = True)
           .toTable("content_job.temp.df_sha256_account_details")
 )
-
 
 
 
