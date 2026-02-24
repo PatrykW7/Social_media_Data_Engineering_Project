@@ -2,7 +2,7 @@ from pyspark.sql import functions as F, Window
 from pyspark.sql.types import StringType
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, BooleanType, DoubleType
 
-
+'''
 def bronze_account_user():
     return (
         spark.read
@@ -17,48 +17,17 @@ def bronze_account_user():
 
 stg = bronze_account_user().filter(F.col("account_id").isNotNull())
 
-#if True:
 
-#    print("Udalo sie")
-#else:
-#    print("PASS")
 
 w = Window.partitionBy("account_id").orderBy(F.col("ingest_time").desc())
-
 stg = stg.withColumn("rn", F.row_number().over(w)).filter(F.col("rn") == 1).drop("rn")
-stg.writeTo("content_job.bronze.bronze_account_user").createOrReplace()
+stg.writeTo("content_job.bronze.account_user").createOrReplace()
 
-#stg.display()
 
-#stg = spark.table("content_job.bronze.bronze_account_user")
-#stg.display()
 cols = stg.columns
-#a = a.remove("account_id")
 tracked_cols = [col for col in cols if col not in ["account_id","ingest_time"]]#cols.remove("account_id","ingest_time")
-#print(tracked_cols)
-
-df_sha256 = stg.withColumn("sha_key", F.sha2(F.concat(F.col("account_id").cast(StringType()), F.col("account_name"), F.col("is_group").cast(StringType())),256))
-     #.withColumn("sha_key", F.concat(*[F.col(col).cast(StringType()) for col in tracked_cols]))
-     # NEED TO SPECIFY ALL TRACKED COLUMNS 
-#df_sha256.display()
-
+df_sha256 = stg.withColumn("sha_key", F.sha2(F.concat_ws('|',*[F.col(col).cast(StringType()) for col in tracked_cols]),256))
 df_sha256.writeTo("content_job.temp.df_sha256_account_user").createOrReplace()
-
-
-#df = spark.table("content_job.silver.silver_account_user")
-
-
-#spark.sql(sql_code)
-
-#df2 = spark.table("content_job.silver.account_user_scd_type2")
-
-#df2.display()
-
-#stg = spark.sql("SELECT * FROM df_sha256_account_user")
-#stg.display()
-
-# TO DO TOMORROW -> FINISH THE MERGE content_job.silver.account_user_scd_type2 + df_sha256_account_user (tempView)
-
 
 
 ########################### ACCOUNT_DETAILS #############################
@@ -124,15 +93,8 @@ stg = bronze_account_details()#.filter(F.col("userId").isNotNull())
     .outputMode("append")
     .option("checkpointLocation", "/content/landing/checkpoints/bronze_acc_detail")
     .trigger(availableNow = True)
-    .toTable("content_job.bronze.bronze_account_details")
+    .toTable("content_job.bronze.account_details")
  )
-
-# stg.display()
-#stg.writeTo("content_job.bronze.bronze_account_details").createOrReplace()
-
-
-
-#stg = spark.read.table("content_job.bronze.bronze_account_details")
 
 stg = stg.select(
                 "userId",
@@ -150,9 +112,6 @@ stg = stg.select(
                 "networkFeatures.networkType",
                 "ingest_time"
             )
-            #.withColumn("accountAgeCategory", F.regexp_replace("accountAgeCategory", "_", ' ')) \
-            #.withColumn("networkType", F.regexp_replace("networkType", "_", ' '))
-
 
 stg = (stg
         .withColumn("accountAgeCategory", F.regexp_replace("accountAgeCategory", "_", ' '))
@@ -160,35 +119,14 @@ stg = (stg
 )
 
 
-''' # FIGURE TO COMMENT THIS OR NOT
-w = Window.partitionBy('userId').orderBy(stg.ingest_time.desc())
-stg = stg.withColumn("rn", F.row_number().over(w)).filter(F.col("rn") == 1).drop("rn")
-'''
-#stg.display()
-
-cols = stg.columns
-
-#WORTH PAYING ATTENTION TO, I'M NOT POINTING USER_ID COLUMN HERE ! 
+cols = stg.columns 
 tracked_cols = [col for col in cols if col not in ['userId', 'ingest_time']]
 
 
-
 df_sha256 = stg.withColumn("sha_key", F.sha2(F.concat_ws("|", *[F.col(col).cast(StringType()) for col in tracked_cols]), 256))
-
-
-#print(f"dtypes: {df_sha256.dtypes}")
-
 df_sha256 = df_sha256.withColumn("location",
                                  F.when(F.col("location") == '', None).otherwise(F.col("location")))
 
-
-#df_sha256_count = (df_sha256.groupBy().count())
-#display(df_sha256_count)
-
-#df_sha256.display()
-
-
-#df_sha256.writeTo("content_job.temp.df_sha256_account_details").createOrReplace()
 
 (df_sha256.writeStream
           .format("delta")
@@ -200,9 +138,91 @@ df_sha256 = df_sha256.withColumn("location",
 
 
 
+########################### TIME TABLE #############################
 
 
+def time_table():
+    return(
+        spark.read
+            .format("jdbc")
+            .option("url", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-jdbc")) 
+            .option("username", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-dblog")) 
+            .option("password", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-secret")) 
+            .option("dbtable", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-tab-time"))
+            .load()
+            .withColumn("ingest_time", F.current_timestamp())
+          
+        
+    )
+stg = time_table().filter(F.col("time_id").isNotNull())
 
+
+w = Window.orderBy(stg.time_id.desc())
+stg.withColumn("rn", F.row_number().over(w)).filter(F.col("rn") == 1).drop("rn")
+stg.writeTo("content_job.bronze.time").createOrReplace()
+
+
+cols = stg.columns
+tracked_cols = [col for col in cols if col not in ['time_id','ingest_time']]
+
+df_sha256 = stg.withColumn("sha_key", F.sha2(F.concat_ws('|', *[F.col(col).cast(StringType()) for col in tracked_cols]),256))
+df_sha256.writeTo("content_job.temp.df_sha256_time").createOrReplace()
+
+
+########################### FOLLOW RELATIONSHIP #############################
+
+
+def bronze_follow_relationship():
+    return(
+        spark.read
+        .format("jdbc")
+        .option("url", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-jdbc")) 
+        .option("username", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-dblog")) 
+        .option("password", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-secret")) 
+        .option("dbtable", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-tab-follow-relationship"))
+        .load()
+        .withColumn("ingest_time", F.current_timestamp())
+    )
+
+
+stg = bronze_follow_relationship().filter((F.col("follower_account_id").isNotNull() | (F.col("followed_account_id").isNotNull())))
+stg.writeTo("content_job.bronze.follow_relationship").createOrReplace()
+
+####### THINK ABOUT THIS PART
+#w = Window.orderBy(F.col("follower_account_id").desc(), F.col("followed_account_id").desc())
+#stg = stg.withColumn("rn", F.row_number().over(w))
+#print(stg.select("rn").distinct().collect())
+
+cols = stg.columns
+tracked_cols = [col for col in cols if col not in ['follower_account_id', 'followed_account_id', 'ingest_time']]
+df_sha256 = stg.withColumn("sha_key", F.sha2(F.concat_ws('|', *[F.col(col).cast(StringType()) for col in tracked_cols]), 256))
+df_sha256.writeTo("content_job.temp.df_sha256_follow_relationship").createOrReplace()
+
+
+'''
+########################### FOLLOW RELATIONSHIP #############################
+
+
+def bronze_advertisers():
+    return(
+        spark.read
+        .format("jdbc")
+        .option("url", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-jdbc")) 
+        .option("username", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-dblog")) 
+        .option("password", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-secret")) 
+        .option("dbtable", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-tab-advertisers"))
+        .load()
+        .withColumn("ingest_time", F.current_timestamp())
+)
+    
+stg = bronze_advertisers().filter(F.col("advertiser_id").isNotNull())
+stg.writeTo("content_job.bronze.advertisers").createOrReplace()
+
+
+cols = stg.columns
+tracked_cols = [col for col in cols if col not in ['advertiser_id', 'ingest_time']]
+df_sha256 = stg.withColumn("sha_key", F.sha2(F.concat_ws('|', *[F.col(col).cast(StringType()) for col in tracked_cols]), 256))
+df_sha256.writeTo("content_job.temp.df_sha256_advertisers").createOrReplace()
 
 
 
