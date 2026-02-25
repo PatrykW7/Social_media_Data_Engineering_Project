@@ -1,8 +1,10 @@
+################ BRONZE ####################
+
 from pyspark.sql import functions as F, Window
 from pyspark.sql.types import StringType
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, BooleanType, DoubleType
 
-'''
+
 def bronze_account_user():
     return (
         spark.read
@@ -199,8 +201,8 @@ df_sha256 = stg.withColumn("sha_key", F.sha2(F.concat_ws('|', *[F.col(col).cast(
 df_sha256.writeTo("content_job.temp.df_sha256_follow_relationship").createOrReplace()
 
 
-'''
-########################### FOLLOW RELATIONSHIP #############################
+
+########################### ADVERTISERS #############################
 
 
 def bronze_advertisers():
@@ -226,8 +228,74 @@ df_sha256.writeTo("content_job.temp.df_sha256_advertisers").createOrReplace()
 
 
 
+########################### ADVERTISEMENTS #############################
 
 
+def bronze_advertisements():
+    return(
+        spark.read
+        .format("jdbc")
+        .option("url", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-jdbc")) 
+        .option("username", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-dblog")) 
+        .option("password", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-secret")) 
+        .option("dbtable", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-tab-advertisements"))
+        .load()
+        .withColumn("ingest_time", F.current_timestamp())
+)
+    
+stg = bronze_advertisements().filter(F.col("advertisement_id").isNotNull())
+
+
+w = Window.orderBy(stg.advertiser_id.desc())
+stg = stg.withColumn("rn", F.row_number().over(w)).filter(F.col("rn") == 1).drop("rn")
+stg.writeTo("content_job.bronze.advertisements").createOrReplace()
+
+characters_original = "ąćęłńóśźżĄĆĘŁŃÓŚŹŻñáéíóúüÑÁÉÍÓÚÜ"
+characters_replace = "acelnoszzACELNOSZZnaeeiouuNAEEIOUU"
+stg = (stg.select("*")
+          .withColumn("ad_name", F.regexp_replace(F.col("ad_name"), "_", ' '))
+          .withColumn("Euro_price", F.col("price_USD").cast("float") * F.lit(0.9))
+          .withColumn("pricing_model", F.when(F.col("pricing_model") == 'n/d', None).otherwise(F.col("pricing_model")))
+          .withColumn("ad_name", F.translate(F.col("ad_name"), characters_original, characters_replace))
+          .withColumn("ad_title", F.translate(F.col("ad_title"), characters_original, characters_replace))
+          .withColumn("ad_text", F.translate(F.col("ad_text"), characters_original, characters_replace))
+
+)
+
+cols = stg.columns
+tracked_cols = [col for col in cols if col not in ["advertisement_id","ingest_time"]]
+df_sha256 = stg.withColumn("sha_key", F.sha2(F.concat_ws('|', *[F.col(col).cast(StringType()) for col in tracked_cols]), 256))
+
+df_sha256.writeTo("content_job.temp.df_sha256_advertisements").createOrReplace()
+
+
+
+
+########################### POSTS #############################
+
+
+def bronze_posts():
+    return(
+        spark.read
+             .format("jdbc")
+             .option("url", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-jdbc")) 
+             .option("username", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-dblog")) 
+             .option("password", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-secret")) 
+             .option("dbtable", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-tab-posts"))
+             .load()
+             .withColumn("ingest_time", F.current_timestamp())
+)
+    
+stg = bronze_posts().filter(F.col("post_id").isNotNull())
+stg.writeTo("content_job.bronze.posts").createOrReplace()
+
+w = Window.orderBy(stg.post_id.desc())
+stg.withColumn("rn", F.row_number().over(w)).filter(F.col("rn") == 1).drop("rn")
+cols = stg.columns
+tracked_cols = [col for col in cols if col not in ["post_id", "ingest_time"]]
+
+df_sha256 = stg.withColumn("sha_key", F.sha2(F.concat_ws('|', *[F.col(col).cast(StringType()) for col in tracked_cols]), 256))
+df_sha256.writeTo("content_job.temp.df_sha256_posts").createOrReplace()
 
 
 

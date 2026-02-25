@@ -1,3 +1,6 @@
+################ SILVER ###########
+
+
 
 sql_code1 = """
 CREATE TABLE IF NOT EXISTS content_job.silver.account_user (
@@ -395,4 +398,129 @@ spark.sql(sql_code12)
 
 
 
+sql_code13 = """
+CREATE TABLE IF NOT EXISTS content_job.silver.advertisements(
+    advertisement_id INT,
+    advertiser_id INT,
+    ad_name VARCHAR(50),
+    ad_title VARCHAR(100),
+    price_USD FLOAT,
+    pricing_model STRING,
+    start_at INT,
+    end_at INT,
+    ad_text STRING,
+    landing_url VARCHAR(150),
+    status VARCHAR(50),
+    Euro_price DOUBLE,
+    created_at_time INT,
+    sha_key STRING,
+    valid_from TIMESTAMP,
+    valid_to TIMESTAMP,
+    is_current BOOLEAN
+
+)
+USING DELTA;
+
+
+"""
+
+spark.sql(sql_code13)
+
+
+sql_code14 = """
+MERGE INTO content_job.silver.advertisements tgt
+USING content_job.temp.df_sha256_advertisements src
+ON tgt.advertisement_id = src.advertisement_id
+AND tgt.is_current = True
+
+WHEN MATCHED AND tgt.sha_key <> src.sha_key THEN UPDATE 
+SET tgt.is_current = False,
+    tgt.valid_to = src.ingest_time
+
+WHEN NOT MATCHED THEN
+INSERT (
+        advertisement_id,
+        advertiser_id,
+        ad_name,
+        ad_title,
+        price_USD,
+        pricing_model,
+        start_at,
+        end_at,
+        ad_text,
+        landing_url,
+        status,
+        Euro_price,
+        created_at_time,
+        sha_key,
+        valid_from,
+        valid_to,       
+        is_current
+        )
+
+
+VALUES (
+        src.advertisement_id,
+        src.advertiser_id,
+        src.ad_name,
+        src.ad_title,
+        src.price_USD,
+        src.pricing_model,
+        src.start_at,
+        src.end_at,
+        src.ad_text,
+        src.landing_url,
+        src.status,
+        src.Euro_price,
+        src.created_at_time,
+        src.sha_key,
+        src.ingest_time,
+        to_timestamp('9999-12-31 23:59:59'),
+        True
+        )
+
+
+"""
+
+spark.sql(sql_code14)
+
+
+####### POSTS######
+sql_code15 = """
+CREATE TABLE IF NOT EXISTS content_job.silver.posts(
+    post_id INT,
+    post_text VARCHAR(300),
+    author_id INT,
+    visibility VARCHAR(20),
+    created_at_time INT,
+    reply_to_pos_time INT,
+    language_code VARCHAR(10),
+    advertisement_id INT,
+    is_deleted BOOLEAN,
+    sha_key STRING,
+    valid_from DATETIME,
+    valid_to DATETIME,
+    is_current BOOLEAN
+
+)
+
+USING DELTA;
+
+"""
+
+spark.sql(sql_code15)
+
+
+sql_code16 = """
+MERGE INTO content_job.silver.posts tgt
+USING content_job.temp.df_sha256_posts src
+ON tgt.post_id = src.post_id 
+AND tgt.is_current = True
+
+WHEN 
+
+
+
+
+"""
 
