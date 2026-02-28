@@ -1,8 +1,5 @@
-################ SILVER ###########
 
-
-
-sql_code1 = """
+sql_code = """
 CREATE TABLE IF NOT EXISTS content_job.silver.account_user (
        account_id INT,
        account_name STRING,
@@ -24,33 +21,34 @@ CREATE TABLE IF NOT EXISTS content_job.silver.account_user (
 USING DELTA;
 """
 
-spark.sql(sql_code1)
+spark.sql(sql_code)
 
 
-sql_code2 = """
-MERGE INTO content_job.silver.account_user  AS tgt
+sql_code = """
+MERGE INTO content_job.silver.account_user tgt 
 USING (
-    SELECT *, true AS is_current FROM content_job.temp.df_sha256_account_user) src 
-ON tgt.account_id = src.account_id
-AND tgt.is_current = true
-WHEN MATCHED AND tgt.sha_key <> src.sha_key THEN
-    UPDATE SET 
-    tgt.is_current = false,
-    tgt.valid_to = src.ingest_time
+      --INSERT COMPLETELY NEW RECORDS 
+      SELECT src_null.*, NULL AS mergeKey FROM content_job.temp.df_sha256_account_user src_null
+      LEFT JOIN content_job.silver.account_user tgt
+      ON src_null.account_id = tgt.account_id AND tgt.is_current = True
+      WHERE tgt.account_id IS NULL
 
-"""
+      UNION ALL
 
+      --UPDATE RECORS WHICH HAD CHANGED IN SOURCE
+      SELECT src.*, src.account_id AS mergeKey FROM content_job.temp.df_sha256_account_user src
+      JOIN content_job.silver.account_user tgt ON src.account_id = tgt.account_id 
+      WHERE tgt.sha_key <> src.sha_key AND tgt.is_current = True
+      ) src
+      ON tgt.account_id = src.mergeKey AND tgt.is_current  = True
 
-spark.sql(sql_code2)
+      WHEN MATCHED AND tgt.sha_key <> src.sha_key THEN UPDATE 
+      SET 
+      tgt.valid_to = src.ingest_time,
+      tgt.is_current = false
 
-# data insert 
-sql_code3 = """
-MERGE INTO content_job.silver.account_user AS tgt
-USING content_job.temp.df_sha256_account_user AS src
-ON tgt.account_id = src.account_id 
-AND tgt.is_current = true
-WHEN NOT MATCHED THEN 
-    INSERT (
+      WHEN NOT MATCHED THEN
+      INSERT (
         account_id,
         account_name,
         is_group,
@@ -89,6 +87,11 @@ WHEN NOT MATCHED THEN
 
 
 """
+
+spark.sql(sql_code)
+
+
+
 
 spark.sql(sql_code3)
 
@@ -523,4 +526,19 @@ WHEN
 
 
 """
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
