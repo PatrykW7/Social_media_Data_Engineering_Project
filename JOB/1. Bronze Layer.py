@@ -4,7 +4,7 @@ from pyspark.sql import functions as F, Window
 from pyspark.sql.types import StringType
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, BooleanType, DoubleType
 
-
+'''
 def bronze_account_user():
     return (
         spark.read
@@ -87,7 +87,7 @@ def bronze_account_details():
 
 
 stg = bronze_account_details()#.filter(F.col("userId").isNotNull())
-# stg.display()
+#stg.display()
 
 
 (stg.writeStream
@@ -97,6 +97,11 @@ stg = bronze_account_details()#.filter(F.col("userId").isNotNull())
     .trigger(availableNow = True)
     .toTable("content_job.bronze.account_details")
  )
+#print(q.status)
+#print("\n")
+#print(q.lastProgress)
+#stg.display()
+
 
 stg = stg.select(
                 "userId",
@@ -139,7 +144,6 @@ df_sha256 = df_sha256.withColumn("location",
 )
 
 
-
 ########################### TIME TABLE #############################
 
 
@@ -170,6 +174,7 @@ tracked_cols = [col for col in cols if col not in ['time_id','ingest_time']]
 df_sha256 = stg.withColumn("sha_key", F.sha2(F.concat_ws('|', *[F.col(col).cast(StringType()) for col in tracked_cols]),256))
 df_sha256.writeTo("content_job.temp.df_sha256_time").createOrReplace()
 
+'''
 
 ########################### FOLLOW RELATIONSHIP #############################
 
@@ -296,8 +301,4 @@ tracked_cols = [col for col in cols if col not in ["post_id", "ingest_time"]]
 
 df_sha256 = stg.withColumn("sha_key", F.sha2(F.concat_ws('|', *[F.col(col).cast(StringType()) for col in tracked_cols]), 256))
 df_sha256.writeTo("content_job.temp.df_sha256_posts").createOrReplace()
-
-
-
-
 
