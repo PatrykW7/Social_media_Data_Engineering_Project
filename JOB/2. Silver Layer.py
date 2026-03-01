@@ -1,8 +1,4 @@
-################ SILVER ###########
-
-
-
-sql_code1 = """
+sql_code = """
 CREATE TABLE IF NOT EXISTS content_job.silver.account_user (
        account_id INT,
        account_name STRING,
@@ -24,33 +20,35 @@ CREATE TABLE IF NOT EXISTS content_job.silver.account_user (
 USING DELTA;
 """
 
-spark.sql(sql_code1)
+spark.sql(sql_code)
 
 
-sql_code2 = """
-MERGE INTO content_job.silver.account_user  AS tgt
+sql_code = """
+MERGE INTO content_job.silver.account_user tgt 
 USING (
-    SELECT *, true AS is_current FROM content_job.temp.df_sha256_account_user) src 
-ON tgt.account_id = src.account_id
-AND tgt.is_current = true
-WHEN MATCHED AND tgt.sha_key <> src.sha_key THEN
-    UPDATE SET 
-    tgt.is_current = false,
-    tgt.valid_to = src.ingest_time
+      --INSERT COMPLETELY NEW RECORDS 
+      SELECT src_null.*, NULL AS mergeKey FROM content_job.temp.df_sha256_account_user src_null
+      LEFT JOIN content_job.silver.account_user tgt
+      ON src_null.account_id = tgt.account_id AND tgt.is_current = True
+      WHERE tgt.account_id IS NULL
 
-"""
+      UNION ALL
 
+      --UPDATE RECORS WHICH HAD CHANGED IN SOURCE
+      SELECT src.*, src.account_id AS mergeKey FROM content_job.temp.df_sha256_account_user src
+      JOIN content_job.silver.account_user tgt ON src.account_id = tgt.account_id 
+      WHERE tgt.sha_key <> src.sha_key AND tgt.is_current = True
+      
+      ) src
+      ON tgt.account_id = src.mergeKey AND tgt.is_current  = True
 
-spark.sql(sql_code2)
+      WHEN MATCHED AND tgt.sha_key <> src.sha_key THEN UPDATE 
+      SET 
+      tgt.valid_to = src.ingest_time,
+      tgt.is_current = false
 
-# data insert 
-sql_code3 = """
-MERGE INTO content_job.silver.account_user AS tgt
-USING content_job.temp.df_sha256_account_user AS src
-ON tgt.account_id = src.account_id 
-AND tgt.is_current = true
-WHEN NOT MATCHED THEN 
-    INSERT (
+      WHEN NOT MATCHED THEN
+      INSERT (
         account_id,
         account_name,
         is_group,
@@ -90,13 +88,15 @@ WHEN NOT MATCHED THEN
 
 """
 
-spark.sql(sql_code3)
+spark.sql(sql_code)
+
+
 
 
 ############# ACCOUNT DETAILS - JSON ############
 
 
-sql_code4 = """
+sql_code = """
 CREATE TABLE IF NOT EXISTS content_job.silver.account_details (
     userId STRING,
     account_creation_year_month STRING,
@@ -122,31 +122,36 @@ USING DELTA;
 
 """
 
-spark.sql(sql_code4)
+
+spark.sql(sql_code)
 
 
-# updating old records
-sql_code5 = """
-MERGE INTO content_job.silver.account_details tgt    
-USING content_job.temp.df_sha256_account_details AS src
-    ON tgt.userId = src.userId 
-    AND tgt.is_current = true
-    WHEN MATCHED AND tgt.sha_key <> src.sha_key
-    THEN UPDATE SET tgt.valid_to = src.ingest_time,
-         tgt.is_current = false
-"""
+sql_code = """
+MERGE INTO content_job.silver.account_details AS tgt
+USING (
+    -- COMPLETELY NEW ROWS TO INSERT 
+    SELECT src_null.*, NULL AS mergeKey 
+    FROM content_job.temp.df_sha256_account_details AS src_null
+    LEFT JOIN content_job.silver.account_details tgt ON src_null.userId = tgt.userId 
+    WHERE tgt.userId IS NULL
 
-spark.sql(sql_code5)
+    UNION ALL
 
+    -- ROWS WHICH HAD CHANGED 
+    SELECT src.*, src.userId AS mergeKey 
+    FROM content_job.temp.df_sha256_account_details AS src
+    JOIN content_job.silver.account_details tgt ON src.userId = tgt.userId
+    WHERE tgt.is_current = true AND src.sha_key <> tgt.sha_key  
+    ) src
 
+    ON tgt.userId = src.mergeKey AND tgt.is_current = True
 
+    WHEN MATCHED AND tgt.sha_key <> src.sha_key THEN UPDATE 
+    SET 
+        tgt.is_current = false,
+        tgt.valid_to = src.ingest_time
 
-sql_code6 = """
-MERGE INTO content_job.silver.account_details tgt
-USING content_job.temp.df_sha256_account_details AS src
-    ON tgt.userId = src.userId
-    AND tgt.is_current = true
-    WHEN NOT MATCHED THEN
+    WHEN NOT MATCHED THEN 
     INSERT (
         userId,
         account_creation_year_month,
@@ -184,19 +189,19 @@ USING content_job.temp.df_sha256_account_details AS src
         src.ingest_time,
         to_timestamp('9999-12-31 23:59:59'),
         true
-        )
+        ) 
 
 """
 
-
-spark.sql(sql_code6)
+spark.sql(sql_code)
 
 
 ######################## TIME ######################
 
 
 
-sql_code7 = """
+
+sql_code = """
 CREATE TABLE IF NOT EXISTS content_job.silver.time(
 time_id INT,
 date DATE,
@@ -217,23 +222,35 @@ USING DELTA;
 
 """
 
-spark.sql(sql_code7)
+spark.sql(sql_code)
 
 
+sql_code = """
+MERGE INTO content_job.silver.time tgt 
+USING (
+       -- INSERT COMPLETELY NEW ROWS
+       SELECT src_null.*, NULL AS mergeKey
+       FROM content_job.temp.df_sha256_time src_null
+       LEFT JOIN content_job.silver.time tgt ON src_null.time_id = tgt.time_id 
+       WHERE tgt.time_id IS NULL
 
-sql_code8 = """
-MERGE INTO content_job.silver.time tgt
-USING content_job.temp.df_sha256_time src
-ON tgt.time_id = src.time_id 
-   AND tgt.is_current = True
+       UNION ALL
+    
+       -- UPDATE ROWS THAT HAD CHANGED
+       SELECT src.*, src.time_id AS mergeKey
+       FROM content_job.temp.df_sha256_time src 
+       JOIN content_job.silver.time tgt ON src.time_id = tgt.time_id
+       WHERE tgt.is_current = true AND tgt.sha_key <> src.sha_key 
 
-WHEN MATCHED AND tgt.sha_key <> src.sha_key THEN UPDATE
-    SET 
-        tgt.is_current = False,
-        tgt.valid_to = src.ingest_time
+) src 
+ON src.mergeKey = tgt.time_id AND tgt.is_current = true
 
-WHEN NOT MATCHED THEN
-     INSERT 
+WHEN MATCHED AND src.sha_key <> tgt.sha_key THEN UPDATE SET 
+    tgt.is_current = false,
+    tgt.valid_to = src.ingest_time
+
+WHEN NOT MATCHED THEN 
+INSERT 
      (
          time_id,
          date,
@@ -261,18 +278,16 @@ WHEN NOT MATCHED THEN
         to_timestamp('9999-12-31 23:59:59'),
         true
     
-    )
+)
 
 
 """
 
-spark.sql(sql_code8)
+spark.sql(sql_code)
 
 
 
-
-
-sql_code9 = """
+sql_code = """
 CREATE TABLE IF NOT EXISTS content_job.silver.follow_relationship (
 follower_account_id INT,
 followed_account_id INT,
@@ -288,22 +303,36 @@ is_current BOOLEAN
 
 USING DELTA;
 
-
 """
 
-spark.sql(sql_code9)
+spark.sql(sql_code)
 
-
-sql_code10 = """
+sql_code = """
 MERGE INTO content_job.silver.follow_relationship tgt
-USING content_job.temp.df_sha256_follow_relationship src
-ON tgt.follower_account_id = src.follower_account_id 
-AND tgt.followed_account_id = src.followed_account_id 
-AND tgt.is_current = True
+USING (
+    SELECT src_null.*, NULL AS mergeKey
+    FROM content_job.temp.df_sha256_follow_relationship src_null
+    LEFT JOIN content_job.silver.follow_relationship tgt 
+    ON src_null.follower_account_id = tgt.follower_account_id 
+    AND src_null.followed_account_id = tgt.followed_account_id
+    WHERE CONCAT(tgt.follower_account_id, tgt.followed_account_id) IS NULL
+    
+    UNION ALL
+
+    SELECT src.*, CONCAT(src.follower_account_id, src.followed_account_id) AS mergeKey
+    FROM content_job.temp.df_sha256_follow_relationship src
+    JOIN content_job.silver.follow_relationship tgt ON 
+    CONCAT(src.follower_account_id, src.followed_account_id) = CONCAT(tgt.follower_account_id, tgt.followed_account_id)
+    WHERE tgt.is_current AND tgt.sha_key <> src.sha_key
+    
+) src
+
+ON src.mergeKey = CONCAT(tgt.follower_account_id, tgt.followed_account_id) AND tgt.is_current = true
 
 WHEN MATCHED AND tgt.sha_key <> src.sha_key THEN UPDATE 
-SET tgt.is_current = False,
-    tgt.valid_to = src.ingest_time
+    SET 
+    tgt.valid_to = src.ingest_time,
+    tgt.is_current = false
 
 WHEN NOT MATCHED THEN
     INSERT (
@@ -332,7 +361,11 @@ WHEN NOT MATCHED THEN
 """
 
 
-spark.sql(sql_code10)
+spark.sql(sql_code)
+
+
+
+### ADVERTISERS
 
 
 sql_code11 = """
