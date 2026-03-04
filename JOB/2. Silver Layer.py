@@ -364,11 +364,8 @@ WHEN NOT MATCHED THEN
 spark.sql(sql_code)
 
 
-
 ### ADVERTISERS
-
-
-sql_code11 = """
+sql_code = """
 CREATE TABLE IF NOT EXISTS content_job.silver.advertisers(
     advertiser_id INT,
     advertiser_name VARCHAR(250),
@@ -386,52 +383,67 @@ USING DELTA;
 
 """
 
-spark.sql(sql_code11)
+spark.sql(sql_code)
 
 
-sql_code12 = """
-MERGE INTO content_job.silver.advertisers tgt
-USING content_job.temp.df_sha256_advertisers src
-ON tgt.advertiser_id = src.advertiser_id
-AND tgt.is_current = True
+sql_code = """
+MERGE INTO content_job.silver.advertisers tgt 
+USING (
+       -- INSERT COMPLETELY NEW ROWS
+       SELECT src_null.* , NULL AS mergeKey FROM content_job.temp.df_sha256_advertisers src_null
+       LEFT JOIN content_job.silver.advertisers tgt ON tgt.advertiser_id = src_null.advertiser_id
+       WHERE tgt.advertiser_id IS NULL
+       
+       UNION ALL
 
-WHEN MATCHED AND tgt.sha_key <> src.sha_key THEN UPDATE
-SET tgt.is_current = False,
-    tgt.valid_to = src.ingest_time
+       -- ROWS THAT HAD CHANGED 
+       SELECT src.*, src.advertiser_id AS mergeKey FROM content_job.temp.df_sha256_advertisers src
+       JOIN content_job.silver.advertisers tgt ON tgt.advertiser_id = src.advertiser_id 
+       WHERE tgt.is_current = true AND tgt.sha_key <> src.sha_key
+       
+       ) src
 
+ON tgt.advertiser_id = src.mergeKey AND tgt.is_current = true
 
-WHEN NOT MATCHED THEN 
-    INSERT (
-            advertiser_id,
-            advertiser_name,
-            destination_group,
-            billing_account_code,
-            billing_status,
-            sha_key,
-            valid_from,
-            valid_to,
-            is_current
-            )
-    VALUES (
-            src.advertiser_id,
-            src.advertiser_name,
-            src.destination_group,
-            src.billing_account_code,
-            src.billing_status,
-            src.sha_key,
-            src.ingest_time,
-            to_timestamp('9999-12-31 23:59:59'),
-            true
-            )
+WHEN MATCHED AND tgt.sha_key <> src.sha_key THEN UPDATE 
+SET 
+   tgt.is_current = false,
+   tgt.valid_to = src.ingest_time
+
+WHEN NOT MATCHED THEN
+INSERT(
+       advertiser_id,
+       advertiser_name,
+       destination_group,
+       billing_account_code,
+       billing_status,
+       sha_key,
+       valid_from,
+       valid_to,
+       is_current
+       )
+VALUES (
+       src.advertiser_id,
+       src.advertiser_name,
+       src.destination_group,
+       src.billing_account_code,
+       src.billing_status,
+       src.sha_key,
+       src.ingest_time,
+       to_timestamp('9999-12-31 23:59:59'),
+       true
+       )
 
 """
 
-spark.sql(sql_code12)
 
 
+spark.sql(sql_code)
 
 
-sql_code13 = """
+####### ADVERTISEMENTS
+
+sql_code = """
 CREATE TABLE IF NOT EXISTS content_job.silver.advertisements(
     advertisement_id INT,
     advertiser_id INT,
@@ -457,82 +469,96 @@ USING DELTA;
 
 """
 
-spark.sql(sql_code13)
+spark.sql(sql_code)
 
 
-sql_code14 = """
+sql_code = """
 MERGE INTO content_job.silver.advertisements tgt
-USING content_job.temp.df_sha256_advertisements src
-ON tgt.advertisement_id = src.advertisement_id
-AND tgt.is_current = True
+USING (
+       --- INSERT COMPLETELY NEW ROWS
+       SELECT src_null.*, NULL AS mergeKey FROM content_job.temp.df_sha256_advertisements src_null\
+       LEFT JOIN content_job.silver.advertisements tgt ON tgt.advertisement_id = src_null.advertisement_id 
+       WHERE tgt.advertisement_id IS NULL
+
+       UNION ALL
+
+       -- ROWS THAT HAD CHANGED
+       SELECT src.*, src.advertisement_id AS mergeKey FROM content_job.temp.df_sha256_advertisements src
+       JOIN content_job.silver.advertisements tgt ON src.advertisement_id = tgt.advertisement_id
+       WHERE tgt.is_current = true AND tgt.sha_key <> src.sha_key 
+
+       ) src
+
+ON tgt.advertisement_id = src.mergeKey AND tgt.is_current = true
 
 WHEN MATCHED AND tgt.sha_key <> src.sha_key THEN UPDATE 
-SET tgt.is_current = False,
-    tgt.valid_to = src.ingest_time
+SET 
+   tgt.valid_to = src.ingest_time,
+   tgt.is_current = false
 
-WHEN NOT MATCHED THEN
-INSERT (
-        advertisement_id,
-        advertiser_id,
-        ad_name,
-        ad_title,
-        price_USD,
-        pricing_model,
-        start_at,
-        end_at,
-        ad_text,
-        landing_url,
-        status,
-        Euro_price,
-        created_at_time,
-        sha_key,
-        valid_from,
-        valid_to,       
-        is_current
-        )
-
-
-VALUES (
-        src.advertisement_id,
-        src.advertiser_id,
-        src.ad_name,
-        src.ad_title,
-        src.price_USD,
-        src.pricing_model,
-        src.start_at,
-        src.end_at,
-        src.ad_text,
-        src.landing_url,
-        src.status,
-        src.Euro_price,
-        src.created_at_time,
-        src.sha_key,
-        src.ingest_time,
-        to_timestamp('9999-12-31 23:59:59'),
-        True
-        )
-
+WHEN NOT MATCHED THEN 
+INSERT(
+       advertisement_id,
+       advertiser_id,
+       ad_name,
+       ad_title,
+       price_USD,
+       pricing_model,
+       start_at,
+       end_at,
+       ad_text,
+       landing_url,
+       status,
+       Euro_price,
+       created_at_time,
+       sha_key,
+       valid_from,
+       valid_to,
+       is_current
+       )
+VALUES(
+       src.advertisement_id,
+       src.advertiser_id,
+       src.ad_name,
+       src.ad_title,
+       src.price_USD,
+       src.pricing_model,
+       src.start_at,
+       src.end_at,
+       src.ad_text,
+       src.landing_url,
+       src.status,
+       src.Euro_price,
+       src.created_at_time,
+       src.sha_key,
+       src.ingest_time,
+       to_timestamp('9999-12-31 23:59:59'),
+       true
+       )
 
 """
 
-spark.sql(sql_code14)
+
+
+
+
 
 
 ####### POSTS######
-sql_code15 = """
+sql_code = """
 CREATE TABLE IF NOT EXISTS content_job.silver.posts(
     post_id INT,
-    post_text VARCHAR(300),
+    post_text STRING,
     author_id INT,
-    visibility VARCHAR(20),
+    visibility VARCHAR(200),
     created_at_time INT,
-    reply_to_pos_time INT,
-    language_code VARCHAR(10),
+    reply_to_post_time INT,
+    language_code VARCHAR(100),
     advertisement_id INT,
     is_deleted BOOLEAN,
     sha_key STRING,
-    valid_from DATETIME,
-    valid_to DATETIME,
+    valid_from TIMESTAMP,
+    valid_to TIMESTAMP,
     is_current BOOLEAN
 
 )
@@ -541,19 +567,145 @@ USING DELTA;
 
 """
 
-spark.sql(sql_code15)
+spark.sql(sql_code)
 
 
-sql_code16 = """
+
+sql_code = """
 MERGE INTO content_job.silver.posts tgt
-USING content_job.temp.df_sha256_posts src
-ON tgt.post_id = src.post_id 
-AND tgt.is_current = True
+USING (
+       -- INSERT COMPLETELTY NEW ROWS
+       SELECT src_null.*, NULL AS mergeKey FROM content_job.temp.df_sha256_posts src_null
+       LEFT JOIN content_job.silver.posts tgt ON src_null.post_id = tgt.post_id
+       WHERE tgt.post_id IS NULL
 
-WHEN 
+       -- ROWS THAT HAD CHANGED IN THE PAST
+       UNION ALL
+       SELECT src.*, src.post_id as mergeKey FROM content_job.temp.df_sha256_posts src
+       JOIN content_job.silver.posts tgt ON tgt.post_id = src.post_id
+       WHERE tgt.is_current = true AND src.sha_key <> tgt.sha_key
+       
+       ) src
+ON tgt.post_id = src.mergeKey AND tgt.is_current = true 
 
+WHEN MATCHED AND tgt.sha_key <> src.sha_key THEN UPDATE
+SET
+   tgt.is_current = false,
+   tgt.valid_to = src.ingest_time
 
-
+WHEN NOT MATCHED THEN 
+INSERT(
+       post_id,
+       post_text,
+       author_id,
+       visibility,
+       created_at_time,
+       reply_to_post_time,
+       language_code,
+       advertisement_id,
+       is_deleted,
+       sha_key,
+       valid_from,
+       valid_to,
+       is_current
+       )
+VALUES(
+       src.post_id,
+       src.post_text,
+       src.author_id,
+       src.visibility,
+       src.created_at_time,
+       src.reply_to_post_time,
+       src.language_code,
+       src.advertisement_id,
+       src.is_deleted,
+       src.sha_key,
+       src.ingest_time,
+       to_timestamp('9999-12-31 23:59:59'),   
+       true
+       )
 
 """
+
+
+spark.sql(sql_code)
+
+
+sql_code = """
+CREATE TABLE IF NOT EXISTS content_job.silver.post_media (
+       media_id INT,
+       post_id INT,
+       media_type VARCHAR(50),
+       media_storage VARCHAR(70),
+       duration_sec DOUBLE,
+       sha_key STRING,
+       valid_from TIMESTAMP,
+       valid_to TIMESTAMP,
+       is_current BOOLEAN
+)
+
+USING DELTA;
+
+"""
+
+spark.sql(sql_code)
+
+#### CHECK TOMORROW DOES IT WORK CORRECTLY 
+sql_code = """
+MERGE INTO content_job.silver.post_media tgt
+USING (
+       -- COMPLETELY NEW ROWS
+       SELECT src_null.*, NULL as mergeKey FROM content_job.temp.df_sha256_post_media src_null
+       LEFT JOIN content_job.silver.post_media tgt ON CONCAT(src_null.media_id, src_null.post_id) = CONCAT(tgt.media_id, tgt.post_id)
+       WHERE CONCAT(tgt.media_id, tgt.post_id) IS NULL
+       
+       UNION ALL
+
+       -- ROWS THAT HAD CHANGED
+       SELECT src.*, CONCAT(src.media_id, src.post_id) as mergeKey FROM content_job.temp.df_sha256_post_media src
+       JOIN content_job.silver.post_media tgt ON CONCAT(src.media_id, src.post_id) = CONCAT(tgt.media_id, tgt.post_id)
+       WHERE tgt.is_current AND tgt.sha_key <> src.sha_key
+
+       ) src
+
+ON CONCAT(tgt.media_id, tgt.post_id) = CONCAT(src.media_id, src.post_id) AND tgt.is_current = true
+
+WHEN MATCHED AND tgt.sha_key <> src.sha_key THEN UPDATE 
+SET 
+   tgt.valid_to = src.ingest_time,
+   tgt.is_current = false
+ 
+
+WHEN NOT MATCHED THEN 
+INSERT(
+       media_id,
+       post_id,
+       media_type,
+       media_storage,
+       duration_sec,
+       sha_key,
+       valid_from,
+       valid_to,
+       is_current
+       )
+VALUES(
+       src.media_id,
+       src.post_id,
+       src.media_type,
+       src.media_storage,
+       src.duration_sec,
+       src.sha_key,
+       src.ingest_time,
+       to_timestamp('9999-12-31 23:59:59'),
+       true)
+
+"""
+
+spark.sql(sql_code)
+
+
+
+
+
+
 
