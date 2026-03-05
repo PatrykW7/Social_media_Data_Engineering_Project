@@ -26,6 +26,7 @@ spark.sql(sql_code)
 sql_code = """
 MERGE INTO content_job.silver.account_user tgt 
 USING (
+
       --INSERT COMPLETELY NEW RECORDS 
       SELECT src_null.*, NULL AS mergeKey FROM content_job.temp.df_sha256_account_user src_null
       LEFT JOIN content_job.silver.account_user tgt
@@ -702,6 +703,90 @@ VALUES(
 """
 
 spark.sql(sql_code)
+
+
+####### HASHTAGS ######
+
+
+sql_code = """
+CREATE TABLE IF NOT EXISTS content_job.silver.hashtags(
+    hashtag_id INT,
+    tag_text VARCHAR(25),
+    first_use_time INT,
+    sha_key STRING,
+    valid_from TIMESTAMP,
+    valid_to TIMESTAMP,
+    is_current BOOLEAN
+    )
+
+USING DELTA;
+
+"""
+
+spark.sql(sql_code)
+
+
+sql_code = """
+MERGE INTO content_job.silver.hashtags tgt
+USING (
+       --- INSERTING COMPLETELY NEW ROWS
+       SELECT src_null.*, NULL AS mergeKey FROM content_job.temp.df_sha256_hashtags src_null
+       LEFT JOIN content_job.silver.hashtags tgt ON src_null.hashtag_id = tgt.hashtag_id 
+       WHERE tgt.hashtag_id IS NULL
+       
+       UNION ALL
+
+       --- ROWS THAT HAD CHANGED
+       SELECT src.*, src.hashtag_id AS mergeKey FROM content_job.temp.df_sha256_hashtags src
+       JOIN content_job.silver.hashtags tgt ON src.hashtag_id = tgt.hashtag_id 
+       WHERE tgt.is_current = true AND tgt.sha_key <> src.sha_key
+       ) src
+ON tgt.hashtag_id = src.mergeKey AND tgt.is_current = true
+
+WHEN MATCHED AND tgt.sha_key <> src.sha_key THEN UPDATE
+SET 
+    tgt.valid_to = src.ingest_time,
+    tgt.is_current = false
+
+
+WHEN NOT MATCHED THEN
+INSERT 
+    (
+    hashtag_id,
+    tag_text,
+    first_use_time,
+    sha_key,
+    valid_from,
+    valid_to,
+    is_current
+    )
+    VALUES
+    (
+    src.hashtag_id,
+    src.tag_text ,
+    src.first_use_time,
+    src.sha_key,
+    src.ingest_time,
+    to_timestamp('9999-12-31 23:59:59'),
+    true
+    )
+
+"""
+
+spark.sql(sql_code)
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
