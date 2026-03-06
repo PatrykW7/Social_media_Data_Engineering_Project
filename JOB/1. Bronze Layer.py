@@ -337,7 +337,7 @@ df_sha256_post_media.writeTo("content_job.temp.df_sha256_post_media").createOrRe
 
 
 
-'''
+
 
 
 ########################### HASHTAGS #############################
@@ -373,19 +373,58 @@ df_sha256_hashtags.writeTo("content_job.temp.df_sha256_hashtags").createOrReplac
 
 
 
+########################### POST HASHTAG #############################
+
+def bronze_post_hashtag():
+    return(
+        spark.read
+        .format("jdbc")
+        .option("url", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-jdbc")) 
+        .option("username", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-dblog")) 
+        .option("password", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-secret")) 
+        .option("dbtable", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-tab-post-hashtags"))
+        .load()
+        .withColumn("ingest_time", F.current_timestamp())
+    )
+
+stg = bronze_post_hashtag().filter((F.col("post_id").isNotNull() | (F.col("hashtag_id").isNotNull())))
+stg.writeTo("content_job.bronze.post_hashtag").createOrReplace()
+
+### THINK ABOUT USING ROW_NUMBER HERE OR NOT
+
+cols = stg.columns
+tracked_cols = [col for col in cols if col not in ['ingest_time']]
+
+df_sha256_post_hashtag = stg.withColumn("sha_key", F.sha2(F.concat_ws('|', *[F.col(col).cast(StringType()) for col in tracked_cols]), 256))
+df_sha256_post_hashtag.writeTo("content_job.temp.df_sha256_post_hashtag").createOrReplace()
+
+'''
 
 
+########################### COMMENTS #############################
 
+def bronze_comments():
+    return(
+        spark.read
+        .format("jdbc")
+        .option("url", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-jdbc")) 
+        .option("username", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-dblog")) 
+        .option("password", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-secret")) 
+        .option("dbtable", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-tab-comments"))
+        .load()
+        .withColumn("ingest_time", F.current_timestamp())
+    )
 
+stg = bronze_comments().filter(F.col("comment_id").isNotNull())
+stg.writeTo("content_job.bronze.comments").createOrReplace()
 
+### THINK ABOUT USING ROW_NUMBER HERE OR NOT
 
+cols = stg.columns
+tracked_cols = [col for col in cols if col not in ['comment_id','ingest_time']]
 
-
-
-
-
-
-
+df_sha256_post_hashtag = stg.withColumn("sha_key", F.sha2(F.concat_ws('|', *[F.col(col).cast(StringType()) for col in tracked_cols]), 256))
+df_sha256_post_hashtag.writeTo("content_job.temp.df_sha256_comments").createOrReplace()
 
 
 
