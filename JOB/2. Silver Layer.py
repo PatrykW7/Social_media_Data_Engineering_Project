@@ -26,6 +26,7 @@ spark.sql(sql_code)
 sql_code = """
 MERGE INTO content_job.silver.account_user tgt 
 USING (
+
       --INSERT COMPLETELY NEW RECORDS 
       SELECT src_null.*, NULL AS mergeKey FROM content_job.temp.df_sha256_account_user src_null
       LEFT JOIN content_job.silver.account_user tgt
@@ -704,8 +705,242 @@ VALUES(
 spark.sql(sql_code)
 
 
+####### HASHTAGS ######
+
+
+sql_code = """
+CREATE TABLE IF NOT EXISTS content_job.silver.hashtags(
+    hashtag_id INT,
+    tag_text VARCHAR(25),
+    first_use_time INT,
+    sha_key STRING,
+    valid_from TIMESTAMP,
+    valid_to TIMESTAMP,
+    is_current BOOLEAN
+    )
+
+USING DELTA;
+
+"""
+
+spark.sql(sql_code)
+
+
+sql_code = """
+MERGE INTO content_job.silver.hashtags tgt
+USING (
+       --- INSERTING COMPLETELY NEW ROWS
+       SELECT src_null.*, NULL AS mergeKey, 'INSERT' AS action FROM content_job.temp.df_sha256_hashtags src_null
+       LEFT JOIN content_job.silver.hashtags tgt ON src_null.hashtag_id = tgt.hashtag_id AND tgt.is_current = true
+       WHERE tgt.hashtag_id IS NULL OR tgt.sha_key <> src_null.sha_key
+       
+       UNION ALL
+
+       --- ROWS THAT HAD CHANGED
+       SELECT src.*, src.hashtag_id AS mergeKey, 'UPDATE' AS action FROM content_job.temp.df_sha256_hashtags src
+       JOIN content_job.silver.hashtags tgt ON src.hashtag_id = tgt.hashtag_id 
+       WHERE tgt.is_current = true AND tgt.sha_key <> src.sha_key
+
+       UNION ALL
+       -- DELETED ROWS
+       SELECT tgt.hashtag_id, tgt.tag_text, tgt.first_use_time, tgt.valid_from, tgt.sha_key, tgt.hashtag_id AS mergeKey, 'DELETE' AS action
+       FROM content_job.silver.hashtags tgt
+       LEFT JOIN content_job.temp.df_sha256_hashtags src ON tgt.hashtag_id = src.hashtag_id 
+       WHERE src.hashtag_id IS NULL AND tgt.is_current = true
+
+       ) src
+ON tgt.hashtag_id = src.mergeKey AND tgt.is_current = true
+
+WHEN MATCHED AND tgt.sha_key <> src.sha_key OR src.action = 'DELETE' THEN UPDATE
+SET 
+    tgt.valid_to = src.ingest_time,
+    tgt.is_current = false
+
+
+WHEN NOT MATCHED AND src.action = 'INSERT' THEN
+INSERT 
+    (
+    hashtag_id,
+    tag_text,
+    first_use_time,
+    sha_key,
+    valid_from,
+    valid_to,
+    is_current
+    )
+    VALUES
+    (
+    src.hashtag_id,
+    src.tag_text ,
+    src.first_use_time,
+    src.sha_key,
+    src.ingest_time,
+    to_timestamp('9999-12-31 23:59:59'),
+    true
+    )
+
+"""
+
+
+spark.sql(sql_code)
 
 
 
+
+sql_code = """
+CREATE TABLE IF NOT EXISTS content_job.silver.post_hashtag(
+    post_id INT,
+    hashtag_id INT,
+    sha_key STRING,
+    valid_from TIMESTAMP,
+    valid_to TIMESTAMP,
+    is_current BOOLEAN 
+)
+
+USING DELTA
+"""
+
+spark.sql(sql_code)
+
+
+sql_code ="""
+MERGE INTO content_job.silver.post_hashtag tgt
+USING (
+    -- COMPLETELY NEW ROWS
+    SELECT src_null.*, NULL AS mergeKey_1, NULL AS mergeKey_2,'INSERT' AS action
+    FROM content_job.temp.df_sha256_post_hashtag src_null 
+    LEFT JOIN content_job.silver.post_hashtag tgt 
+    ON src_null.post_id = tgt.post_id AND src_null.hashtag_id = tgt.hashtag_id AND tgt.is_current = true
+    WHERE tgt.post_id IS NULL AND tgt.hashtag_id IS NULL
+    
+    UNION ALL 
+
+    -- CHANGED ROWS
+    SELECT src.* , src.post_id AS mergeKey_1, src.hashtag_id AS mergeKey_2, 'UPDATE' AS action
+    FROM content_job.temp.df_sha256_post_hashtag src 
+    JOIN content_job.silver.post_hashtag tgt ON src.post_id = tgt.post_id AND src.hashtag_id = tgt.hashtag_id 
+    WHERE src.sha_key <> tgt.sha_key AND tgt.is_current
+
+    -- DELETE ROWS
+    UNION ALL
+
+    SELECT tgt.post_id, tgt.hashtag_id, tgt.valid_from, tgt.sha_key, tgt.post_id AS mergeKey_1, tgt.hashtag_id AS mergeKey_2, 'DELETE' AS action
+    FROM content_job.silver.post_hashtag tgt 
+    LEFT JOIN content_job.temp.df_sha256_post_hashtag src 
+    ON src.post_id = tgt.post_id AND src.hashtag_id = tgt.hashtag_id 
+    WHERE src.post_id IS NULL AND src.hashtag_id IS NULL AND tgt.is_current
+
+
+    ) src
+ON tgt.post_id = src.mergeKey_1 AND tgt.hashtag_id = src.mergeKey_2 AND tgt.is_current = true 
+
+WHEN MATCHED AND tgt.sha_key <> src.sha_key OR src.action = 'DELETE' THEN UPDATE 
+SET 
+    tgt.valid_to = src.ingest_time,
+    tgt.is_current = false
+
+WHEN NOT MATCHED THEN 
+INSERT(
+       post_id,
+       hashtag_id,
+       sha_key,
+       valid_from,
+       valid_to,
+       is_current
+       )
+VALUES(
+       src.post_id,
+       src.hashtag_id,
+       src.sha_key,
+       src.ingest_time,
+       to_timestamp('9999-12-31 23:59:59'),
+       true
+       )
+
+
+"""
+
+spark.sql(sql_code)
+
+
+sql_code = """
+CREATE TABLE IF NOT EXISTS content_job.silver.comments(
+    comment_id INT,
+    author_account_id INT,
+    post_id INT,
+    created_at_time INT,
+    comment_text STRING,
+    status VARCHAR(50),
+    is_image BOOLEAN,
+    sha_key STRING,
+    valid_from TIMESTAMP,
+    valid_to TIMESTAMP,
+    is_current BOOLEAN
+    
+)
+    
+USING DELTA;
+
+"""
+
+spark.sql(sql_code)
+
+
+
+sql_code = """
+MERGE INTO content_job.silver.comments tgt
+USING (
+        --- INSERT NEW ROWS
+        SELECT src_null.*, NULL AS mergeKey, 'INSERT' AS action FROM content_job.temp.df_sha256_comments src_null
+        LEFT JOIN content_job.silver.comments tgt ON src_null.comment_id = tgt.comment_id 
+        WHERE tgt.comment_id IS NULL 
+
+        UNION ALL
+
+        -- ROWS THAT CHANGED IN THE PAST
+        SELECT src.*, src.comment_id AS mergeKey, 'UPDATE' AS action FROM content_job.temp.df_sha256_comments src
+        JOIN content_job.silver.comments tgt ON src.comment_id = tgt.comment_id
+        WHERE tgt.is_current = true AND src.sha_key <> tgt.sha_key
+
+
+       ) src
+ON tgt.comment_id = src.mergeKey AND tgt.is_current = true
+
+WHEN MATCHED AND tgt.sha_key <> src.sha_key THEN UPDATE 
+SET 
+    tgt.valid_to = src.ingest_time,
+    tgt.is_current = false
+
+WHEN NOT MATCHED THEN 
+INSERT(
+      comment_id,
+      author_account_id,
+      post_id,
+      created_at_time,
+      comment_text,
+      status,
+      is_image,
+      sha_key,
+      valid_from,
+      valid_to,
+      is_current
+      ) 
+VALUES(
+      src.comment_id,
+      src.author_account_id,
+      src.post_id,
+      src.created_at_time,
+      src.comment_text,
+      src.status,
+      src.is_image,
+      src.sha_key,
+      src.ingest_time,
+      to_timestamp('9999-12-31 23:59:59'),
+      true
+      )
+
+"""
+
+spark.sql(sql_code)
 
 
