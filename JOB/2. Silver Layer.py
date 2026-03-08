@@ -28,22 +28,32 @@ MERGE INTO content_job.silver.account_user tgt
 USING (
 
       --INSERT COMPLETELY NEW RECORDS 
-      SELECT src_null.*, NULL AS mergeKey FROM content_job.temp.df_sha256_account_user src_null
+      SELECT src_null.*, NULL AS mergeKey, 'INSERT' AS action FROM content_job.temp.df_sha256_account_user src_null
       LEFT JOIN content_job.silver.account_user tgt
-      ON src_null.account_id = tgt.account_id AND tgt.is_current = True
-      WHERE tgt.account_id IS NULL
+      ON src_null.account_id = tgt.account_id AND tgt.is_current = true
+      WHERE tgt.account_id IS NULL OR src_null.sha_key <> tgt.sha_key
 
       UNION ALL
 
       --UPDATE RECORS WHICH HAD CHANGED IN SOURCE
-      SELECT src.*, src.account_id AS mergeKey FROM content_job.temp.df_sha256_account_user src
+      SELECT src.*, src.account_id AS mergeKey, 'UPDATE' AS action FROM content_job.temp.df_sha256_account_user src
       JOIN content_job.silver.account_user tgt ON src.account_id = tgt.account_id 
       WHERE tgt.sha_key <> src.sha_key AND tgt.is_current = True
+      
+      UNION ALL
+
+      --- DELETED ROWS
+
+      SELECT tgt.account_id, tgt.account_name, tgt.is_group, tgt.first_name, tgt.last_name, tgt.display_name, tgt.profile_url, tgt.profile_image_storage, 
+      tgt.profile_baner_storage, tgt.login, tgt.password, tgt.second_mail, tgt.valid_from, tgt.sha_key, tgt.account_id AS mergeKey, 'DELETE' AS action
+      FROM content_job.silver.account_user tgt 
+      LEFT JOIN content_job.temp.df_sha256_account_user src ON tgt.account_id = src.account_id
+      WHERE src.account_id IS NULL AND tgt.is_current = true
       
       ) src
       ON tgt.account_id = src.mergeKey AND tgt.is_current  = True
 
-      WHEN MATCHED AND tgt.sha_key <> src.sha_key THEN UPDATE 
+      WHEN MATCHED AND tgt.sha_key <> src.sha_key OR src.action = 'DELETE' THEN UPDATE 
       SET 
       tgt.valid_to = src.ingest_time,
       tgt.is_current = false
@@ -130,24 +140,34 @@ spark.sql(sql_code)
 sql_code = """
 MERGE INTO content_job.silver.account_details AS tgt
 USING (
-    -- COMPLETELY NEW ROWS TO INSERT 
-    SELECT src_null.*, NULL AS mergeKey 
+    --- COMPLETELY NEW ROWS TO INSERT 
+    SELECT src_null.*, NULL AS mergeKey, 'INSERT' AS action 
     FROM content_job.temp.df_sha256_account_details AS src_null
-    LEFT JOIN content_job.silver.account_details tgt ON src_null.userId = tgt.userId 
-    WHERE tgt.userId IS NULL
+    LEFT JOIN content_job.silver.account_details tgt ON src_null.userId = tgt.userId AND tgt.is_current = true
+    WHERE tgt.userId IS NULL OR tgt.sha_key <> src_null.sha_key
 
     UNION ALL
 
-    -- ROWS WHICH HAD CHANGED 
-    SELECT src.*, src.userId AS mergeKey 
+    --- ROWS WHICH HAD CHANGED 
+    SELECT src.*, src.userId AS mergeKey, 'UPDATE' AS action
     FROM content_job.temp.df_sha256_account_details AS src
     JOIN content_job.silver.account_details tgt ON src.userId = tgt.userId
     WHERE tgt.is_current = true AND src.sha_key <> tgt.sha_key  
+
+    UNION ALL
+
+    --- DELETED ROWS
+    SELECT tgt.userId, tgt.account_creation_year_month, tgt.accountAgeCategory, tgt.isVerified, tgt.verificationConfidence, tgt.potentialBot, tgt.potentialInfluencer, tgt.friendsCount, tgt.listedCount, tgt.location, tgt.rawDescription, tgt.profileCompletenessScore, tgt.networkType, tgt.valid_from, tgt.sha_key, tgt.userId AS mergeKey, 'DELETE' AS action
+    FROM content_job.silver.account_details tgt
+    LEFT JOIN content_job.temp.df_sha256_account_details src ON tgt.userId = src.userId
+    WHERE tgt.is_current = true AND src.userId IS NULL
+
+
     ) src
 
     ON tgt.userId = src.mergeKey AND tgt.is_current = True
 
-    WHEN MATCHED AND tgt.sha_key <> src.sha_key THEN UPDATE 
+    WHEN MATCHED AND tgt.sha_key <> src.sha_key OR src.action = 'DELETE' THEN UPDATE 
     SET 
         tgt.is_current = false,
         tgt.valid_to = src.ingest_time
@@ -229,24 +249,32 @@ spark.sql(sql_code)
 sql_code = """
 MERGE INTO content_job.silver.time tgt 
 USING (
-       -- INSERT COMPLETELY NEW ROWS
-       SELECT src_null.*, NULL AS mergeKey
+       --- INSERT COMPLETELY NEW ROWS
+       SELECT src_null.*, NULL AS mergeKey, 'INSERT' AS action
        FROM content_job.temp.df_sha256_time src_null
-       LEFT JOIN content_job.silver.time tgt ON src_null.time_id = tgt.time_id 
-       WHERE tgt.time_id IS NULL
+       LEFT JOIN content_job.silver.time tgt ON src_null.time_id = tgt.time_id AND tgt.is_current = true
+       WHERE tgt.time_id IS NULL OR tgt.sha_key <> src_null.sha_key
 
        UNION ALL
     
-       -- UPDATE ROWS THAT HAD CHANGED
-       SELECT src.*, src.time_id AS mergeKey
+       --- UPDATE ROWS THAT HAD CHANGED
+       SELECT src.*, src.time_id AS mergeKey, 'UPDATE' AS action
        FROM content_job.temp.df_sha256_time src 
        JOIN content_job.silver.time tgt ON src.time_id = tgt.time_id
        WHERE tgt.is_current = true AND tgt.sha_key <> src.sha_key 
 
+       UNION ALL
+
+       --- DELETED ROWS
+       SELECT tgt.time_id, tgt.date, tgt.year, tgt.month, tgt.day, tgt.quarter, tgt.week_number, tgt.half_year, tgt.valid_from, tgt.sha_key, tgt.time_id AS mergeKey, 'DELETE' AS action
+       FROM content_job.silver.time tgt 
+       LEFT JOIN content_job.temp.df_sha256_time src ON tgt.time_id = src.time_id
+       WHERE tgt.is_current = true AND src.time_id IS NULL
+
 ) src 
 ON src.mergeKey = tgt.time_id AND tgt.is_current = true
 
-WHEN MATCHED AND src.sha_key <> tgt.sha_key THEN UPDATE SET 
+WHEN MATCHED AND src.sha_key <> tgt.sha_key OR src.action = 'DELETE' THEN UPDATE SET 
     tgt.is_current = false,
     tgt.valid_to = src.ingest_time
 
@@ -390,23 +418,32 @@ spark.sql(sql_code)
 sql_code = """
 MERGE INTO content_job.silver.advertisers tgt 
 USING (
-       -- INSERT COMPLETELY NEW ROWS
-       SELECT src_null.* , NULL AS mergeKey FROM content_job.temp.df_sha256_advertisers src_null
+       --- INSERT COMPLETELY NEW ROWS
+       SELECT src_null.* , NULL AS mergeKey, 'INSERT' AS action FROM content_job.temp.df_sha256_advertisers src_null
        LEFT JOIN content_job.silver.advertisers tgt ON tgt.advertiser_id = src_null.advertiser_id
        WHERE tgt.advertiser_id IS NULL
        
        UNION ALL
 
-       -- ROWS THAT HAD CHANGED 
-       SELECT src.*, src.advertiser_id AS mergeKey FROM content_job.temp.df_sha256_advertisers src
+       --- ROWS THAT HAD CHANGED 
+       SELECT src.*, src.advertiser_id AS mergeKey, 'UPDATE' AS action FROM content_job.temp.df_sha256_advertisers src
        JOIN content_job.silver.advertisers tgt ON tgt.advertiser_id = src.advertiser_id 
        WHERE tgt.is_current = true AND tgt.sha_key <> src.sha_key
        
+       UNION ALL
+
+       --- DELETED ROWS
+        SELECT tgt.advertiser_id, tgt.advertiser_name, tgt.destination_group, tgt.billing_account_code, tgt.billing_status, tgt.valid_from, tgt.sha_key,
+        tgt.advertiser_id, 'DELETE' AS action
+        FROM content_job.silver.advertisers tgt
+        LEFT JOIN content_job.temp.df_sha256_advertisers src ON tgt.advertiser_id = src.advertiser_id
+        WHERE src.advertiser_id IS NULL AND tgt.is_current = true
+
        ) src
 
 ON tgt.advertiser_id = src.mergeKey AND tgt.is_current = true
 
-WHEN MATCHED AND tgt.sha_key <> src.sha_key THEN UPDATE 
+WHEN MATCHED AND tgt.sha_key <> src.sha_key OR src.action = 'DELETE' THEN UPDATE 
 SET 
    tgt.is_current = false,
    tgt.valid_to = src.ingest_time
@@ -705,6 +742,9 @@ VALUES(
 spark.sql(sql_code)
 
 
+
+
+
 ####### HASHTAGS ######
 
 
@@ -890,23 +930,30 @@ spark.sql(sql_code)
 sql_code = """
 MERGE INTO content_job.silver.comments tgt
 USING (
-        --- INSERT NEW ROWS
+        --- INSERT NEW ROWS 
         SELECT src_null.*, NULL AS mergeKey, 'INSERT' AS action FROM content_job.temp.df_sha256_comments src_null
-        LEFT JOIN content_job.silver.comments tgt ON src_null.comment_id = tgt.comment_id 
-        WHERE tgt.comment_id IS NULL 
+        LEFT JOIN content_job.silver.comments tgt ON src_null.comment_id = tgt.comment_id AND tgt.is_current = true
+        WHERE tgt.comment_id IS NULL OR src_null.sha_key <> tgt.sha_key
 
         UNION ALL
 
-        -- ROWS THAT CHANGED IN THE PAST
+        --- ROWS THAT CHANGED IN THE PAST
         SELECT src.*, src.comment_id AS mergeKey, 'UPDATE' AS action FROM content_job.temp.df_sha256_comments src
         JOIN content_job.silver.comments tgt ON src.comment_id = tgt.comment_id
         WHERE tgt.is_current = true AND src.sha_key <> tgt.sha_key
 
+        UNION ALL
+        
+        --- DELETED ROWS
+        SELECT tgt.comment_id, tgt.author_account_id, tgt.post_id, tgt.created_at_time, tgt.comment_text, tgt.status,
+        tgt.is_image, tgt.valid_from, tgt.sha_key, tgt.comment_id AS mergeKEy, 'DELETE' AS action FROM content_job.silver.comments tgt
+        LEFT JOIN content_job.bronze.comments src ON tgt.comment_id = src.comment_id 
+        WHERE tgt.is_current = true AND src.comment_id IS NULL
 
        ) src
 ON tgt.comment_id = src.mergeKey AND tgt.is_current = true
 
-WHEN MATCHED AND tgt.sha_key <> src.sha_key THEN UPDATE 
+WHEN MATCHED AND tgt.sha_key <> src.sha_key OR src.action = 'DELETE' THEN UPDATE 
 SET 
     tgt.valid_to = src.ingest_time,
     tgt.is_current = false
@@ -942,5 +989,131 @@ VALUES(
 """
 
 spark.sql(sql_code)
+
+
+
+
+
+####### REACTIONS ######
+
+
+sql_code = """
+CREATE TABLE IF NOT EXISTS content_job.silver.reactions(
+    reaction_id INT,
+    reacted_at_time INT,
+    account_id INT,
+    post_id INT,
+    reaction_type VARCHAR(25),
+    sha_key STRING,
+    valid_from TIMESTAMP,
+    valid_to TIMESTAMP,
+    is_current BOOLEAN
+    
+)
+
+USING DELTA;
+
+"""
+
+spark.sql(sql_code)
+
+
+sql_code = """
+MERGE INTO content_job.silver.reactions tgt 
+USING (
+    --- INSERT NEW ROWS
+    SELECT src_null.*, NULL AS mergeKey, 'INSERT' AS action FROM content_job.temp.df_sha256_reactions src_null
+    LEFT JOIN content_job.silver.reactions tgt ON src_null.reaction_id = tgt.reaction_id AND tgt.is_current = true
+    WHERE tgt.reaction_id IS NULL OR tgt.sha_key <> src_null.sha_key
+
+    UNION ALL
+
+    --- UPDATE ROWS THAT HAD CHANGED 
+    SELECT src.*, src.reaction_id AS mergeKey, 'UPDATE' AS action FROM content_job.temp.df_sha256_reactions src
+    JOIN content_job.silver.reactions tgt ON src.reaction_id = tgt.reaction_id 
+    WHERE tgt.is_current = true AND src.sha_key <> tgt.sha_key
+
+    UNION ALL
+
+    --- DELETED ROWS
+    SELECT tgt.reaction_id, tgt.reacted_at_time, tgt.account_id, tgt.post_id, tgt.reaction_type, tgt.valid_from, tgt.sha_key,
+    tgt.reaction_id AS mergeKey, 'DELETE' AS ACTION
+    FROM content_job.silver.reactions tgt 
+    LEFT JOIN content_job.temp.df_sha256_reactions src ON tgt.reaction_id = src.reaction_id
+    WHERE tgt.is_current = true AND src.reaction_id IS NULL 
+    
+    
+    ) src
+
+ON tgt.reaction_id = src.mergeKey AND tgt.is_current = true
+
+WHEN MATCHED AND tgt.sha_key <> src.sha_key OR action = 'DELETE' THEN UPDATE
+SET 
+    tgt.valid_to = src.ingest_time,
+    tgt.is_current = false
+
+
+WHEN NOT MATCHED THEN 
+INSERT (
+        reaction_id,
+        reacted_at_time,
+        account_id,
+        post_id,
+        reaction_type,
+        sha_key,
+        valid_from,
+        valid_to,
+        is_current
+        )
+
+VALUES(
+        src.reaction_id,
+        src.reacted_at_time,
+        src.account_id,
+        src.post_id,
+        src.reaction_type,
+        src.sha_key,
+        src.ingest_time,
+        to_timestamp('9999-12-31 23:59:59'),
+        true
+        )
+
+"""
+
+spark.sql(sql_code)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
