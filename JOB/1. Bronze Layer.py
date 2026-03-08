@@ -398,7 +398,7 @@ tracked_cols = [col for col in cols if col not in ['ingest_time']]
 df_sha256_post_hashtag = stg.withColumn("sha_key", F.sha2(F.concat_ws('|', *[F.col(col).cast(StringType()) for col in tracked_cols]), 256))
 df_sha256_post_hashtag.writeTo("content_job.temp.df_sha256_post_hashtag").createOrReplace()
 
-'''
+
 
 
 ########################### COMMENTS #############################
@@ -418,13 +418,50 @@ def bronze_comments():
 stg = bronze_comments().filter(F.col("comment_id").isNotNull())
 stg.writeTo("content_job.bronze.comments").createOrReplace()
 
-### THINK ABOUT USING ROW_NUMBER HERE OR NOT
+w = Window.orderBy(stg.comment_id.desc())
+stg.withColumn("rn", F.row_number().over(w)).filter(F.col("rn") == 1).drop(F.col("rn"))
+
 
 cols = stg.columns
 tracked_cols = [col for col in cols if col not in ['comment_id','ingest_time']]
 
-df_sha256_post_hashtag = stg.withColumn("sha_key", F.sha2(F.concat_ws('|', *[F.col(col).cast(StringType()) for col in tracked_cols]), 256))
-df_sha256_post_hashtag.writeTo("content_job.temp.df_sha256_comments").createOrReplace()
+df_sha256_comments = stg.withColumn("sha_key", F.sha2(F.concat_ws('|', *[F.col(col).cast(StringType()) for col in tracked_cols]), 256))
+df_sha256_comments.writeTo("content_job.temp.df_sha256_comments").createOrReplace()
+
+'''
+
+########################### REACTIONS #############################
+
+
+def bronze_reactions():
+    return(
+        spark.read
+        .format("jdbc")
+        .option("url", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-jdbc")) 
+        .option("username", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-dblog")) 
+        .option("password", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-secret")) 
+        .option("dbtable", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-db-tab-reactions"))
+        .load()
+        .withColumn("ingest_time", F.current_timestamp())
+    )
+
+stg = bronze_reactions().filter(F.col("reaction_id").isNotNull())
+stg.writeTo("content_job.bronze.reactions").createOrReplace()
+
+w = Window.orderBy(stg.reaction_id.desc())
+stg.withColumn("rn", F.row_number().over(w)).filter(F.col("rn") == 1).drop(F.col("rn"))
+
+cols = stg.columns
+tracked_cols = [col for col in cols if col not in ['reaction_id','ingest_time']]
+
+df_sha256_reactions = stg.withColumn("sha_key", F.sha2(F.concat_ws('|', *[F.col(col).cast(StringType()) for col in tracked_cols]), 256))
+df_sha256_reactions.writeTo("content_job.temp.df_sha256_reactions").createOrReplace()
+
+
+
+
+
+
 
 
 
