@@ -421,7 +421,7 @@ USING (
        --- INSERT COMPLETELY NEW ROWS
        SELECT src_null.* , NULL AS mergeKey, 'INSERT' AS action FROM content_job.temp.df_sha256_advertisers src_null
        LEFT JOIN content_job.silver.advertisers tgt ON tgt.advertiser_id = src_null.advertiser_id
-       WHERE tgt.advertiser_id IS NULL
+       WHERE tgt.advertiser_id IS NULL OR tgt.sha_key <> src_null.sha_key
        
        UNION ALL
 
@@ -514,22 +514,31 @@ sql_code = """
 MERGE INTO content_job.silver.advertisements tgt
 USING (
        --- INSERT COMPLETELY NEW ROWS
-       SELECT src_null.*, NULL AS mergeKey FROM content_job.temp.df_sha256_advertisements src_null\
-       LEFT JOIN content_job.silver.advertisements tgt ON tgt.advertisement_id = src_null.advertisement_id 
-       WHERE tgt.advertisement_id IS NULL
+       SELECT src_null.*, NULL AS mergeKey, 'INSERT' AS action FROM content_job.temp.df_sha256_advertisements src_null\
+       LEFT JOIN content_job.silver.advertisements tgt ON tgt.advertisement_id = src_null.advertisement_id AND tgt.is_current = true
+       WHERE tgt.advertisement_id IS NULL OR tgt.sha_key <> src_null.sha_key
 
        UNION ALL
 
-       -- ROWS THAT HAD CHANGED
-       SELECT src.*, src.advertisement_id AS mergeKey FROM content_job.temp.df_sha256_advertisements src
+       --- ROWS THAT HAD CHANGED
+       SELECT src.*, src.advertisement_id AS mergeKey, 'UPDATE' AS action FROM content_job.temp.df_sha256_advertisements src
        JOIN content_job.silver.advertisements tgt ON src.advertisement_id = tgt.advertisement_id
        WHERE tgt.is_current = true AND tgt.sha_key <> src.sha_key 
+
+        UNION ALL
+
+        --- DELETED ROWS
+        SELECT tgt.advertisement_id, tgt.advertiser_id, tgt.ad_name, tgt.ad_title, tgt.price_USD, tgt.pricing_model, tgt.start_at, tgt.end_at, tgt.ad_text, tgt.landing_url,
+        tgt.status, tgt.created_at_time, tgt.valid_from, tgt.Euro_price, tgt.sha_key, tgt.advertisement_id AS mergeKey, 'DELETE' AS action
+        FROM content_job.silver.advertisements tgt 
+        LEFT JOIN content_job.temp.df_sha256_advertisements src ON tgt.advertisement_id = src.advertisement_id
+        WHERE tgt.is_current = true AND src.advertisement_id IS NULL
 
        ) src
 
 ON tgt.advertisement_id = src.mergeKey AND tgt.is_current = true
 
-WHEN MATCHED AND tgt.sha_key <> src.sha_key THEN UPDATE 
+WHEN MATCHED AND tgt.sha_key <> src.sha_key OR src.action = 'DELETE' THEN UPDATE 
 SET 
    tgt.valid_to = src.ingest_time,
    tgt.is_current = false
@@ -612,21 +621,30 @@ spark.sql(sql_code)
 sql_code = """
 MERGE INTO content_job.silver.posts tgt
 USING (
-       -- INSERT COMPLETELTY NEW ROWS
-       SELECT src_null.*, NULL AS mergeKey FROM content_job.temp.df_sha256_posts src_null
-       LEFT JOIN content_job.silver.posts tgt ON src_null.post_id = tgt.post_id
-       WHERE tgt.post_id IS NULL
+       --- INSERT COMPLETELTY NEW ROWS
+       SELECT src_null.*, NULL AS mergeKey, 'INSERT' AS action FROM content_job.temp.df_sha256_posts src_null
+       LEFT JOIN content_job.silver.posts tgt ON src_null.post_id = tgt.post_id AND tgt.is_current = true
+       WHERE tgt.post_id IS NULL AND tgt.sha_key <> src_null.sha_key
 
-       -- ROWS THAT HAD CHANGED IN THE PAST
+       --- ROWS THAT HAD CHANGED IN THE PAST
        UNION ALL
-       SELECT src.*, src.post_id as mergeKey FROM content_job.temp.df_sha256_posts src
+       SELECT src.*, src.post_id as mergeKey, 'UPDATE' AS action FROM content_job.temp.df_sha256_posts src
        JOIN content_job.silver.posts tgt ON tgt.post_id = src.post_id
        WHERE tgt.is_current = true AND src.sha_key <> tgt.sha_key
        
+       UNION ALL
+
+       --- DELETED ROWS
+        SELECT tgt.post_id, tgt.post_text, tgt.author_id, tgt.visibility, tgt.created_at_time, tgt.reply_to_post_time, tgt.language_code, tgt.advertisement_id, 
+        tgt.is_deleted, tgt.valid_from, tgt.sha_key, tgt.post_id, 'DELETE' AS action
+        FROM content_job.silver.posts tgt 
+        LEFT JOIN content_job.temp.df_sha256_posts src ON tgt.post_id = src.post_id 
+        WHERE tgt.is_current = true AND src.post_id IS NULL
+
        ) src
 ON tgt.post_id = src.mergeKey AND tgt.is_current = true 
 
-WHEN MATCHED AND tgt.sha_key <> src.sha_key THEN UPDATE
+WHEN MATCHED AND tgt.sha_key <> src.sha_key OR src.action = 'DELETE' THEN UPDATE
 SET
    tgt.is_current = false,
    tgt.valid_to = src.ingest_time
@@ -692,23 +710,33 @@ spark.sql(sql_code)
 sql_code = """
 MERGE INTO content_job.silver.post_media tgt
 USING (
-       -- COMPLETELY NEW ROWS
-       SELECT src_null.*, NULL as mergeKey FROM content_job.temp.df_sha256_post_media src_null
-       LEFT JOIN content_job.silver.post_media tgt ON CONCAT(src_null.media_id, src_null.post_id) = CONCAT(tgt.media_id, tgt.post_id)
-       WHERE CONCAT(tgt.media_id, tgt.post_id) IS NULL
+       --- COMPLETELY NEW ROWS
+       SELECT src_null.*, NULL as mergeKey, 'INSERT' AS action FROM content_job.temp.df_sha256_post_media src_null
+       LEFT JOIN content_job.silver.post_media tgt ON src_null.media_id = tgt.media_id AND src_null.post_id = tgt.post_id 
+       WHERE tgt.media_id IS NULL AND tgt.post_id IS NULL OR tgt.sha_key <> src_null.sha_key
+       
+       
        
        UNION ALL
 
-       -- ROWS THAT HAD CHANGED
-       SELECT src.*, CONCAT(src.media_id, src.post_id) as mergeKey FROM content_job.temp.df_sha256_post_media src
-       JOIN content_job.silver.post_media tgt ON CONCAT(src.media_id, src.post_id) = CONCAT(tgt.media_id, tgt.post_id)
+       --- ROWS THAT HAD CHANGED
+       SELECT src.*, CONCAT(src.media_id, src.post_id) as mergeKey, 'UPDATE' AS action FROM content_job.temp.df_sha256_post_media src
+       JOIN content_job.silver.post_media tgt ON src.media_id = tgt.media_id AND src.post_id = tgt.post_id
        WHERE tgt.is_current AND tgt.sha_key <> src.sha_key
+
+       UNION ALL
+
+       --- DELETED ROWS
+       SELECT tgt.media_id, tgt.post_id, tgt.media_type, tgt.media_storage, tgt.duration_sec, tgt.valid_from, tgt.sha_key, CONCAT(tgt.media_id, tgt.post_id) as mergeKey,
+       'DELETE' AS action FROM content_job.silver.post_media tgt 
+       LEFT JOIN content_job.temp.df_sha256_post_media src ON tgt.media_id = src.media_id AND tgt.post_id = src.post_id
+       WHERE tgt.is_current = true AND src.media_id IS NULL AND src.post_id IS NULL
 
        ) src
 
 ON CONCAT(tgt.media_id, tgt.post_id) = CONCAT(src.media_id, src.post_id) AND tgt.is_current = true
 
-WHEN MATCHED AND tgt.sha_key <> src.sha_key THEN UPDATE 
+WHEN MATCHED AND tgt.sha_key <> src.sha_key OR src.action = 'DELETE' THEN UPDATE 
 SET 
    tgt.valid_to = src.ingest_time,
    tgt.is_current = false
