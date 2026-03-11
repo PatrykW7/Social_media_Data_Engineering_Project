@@ -5,8 +5,8 @@ import dlt
 
 # Creating bronze table for account_user
 @dlt.table(name = "bronze_account_user",
-          table_properties = {"schema" : "bronze"},
-                            #"delta.enableChangeDataFeed": "true"},
+          table_properties = {"schema" : "bronze",
+                            "delta.enableChangeDataFeed": "true"},
           comment = "Bronze table for account_user")
           
 def bronze_account_user():
@@ -19,8 +19,19 @@ def bronze_account_user():
         .option("password", dbutils.secrets.get(scope="sm-secret-scope", key = "social-media-project-secret"))
         .load()
         .select(
-                "*",
-                F.current_timestamp().alias("ingest_time")
+        F.col("account_id"),
+		F.col("account_name"),
+		F.col("is_group"),
+		F.col("first_name"),
+		F.col("last_name"),
+		F.col("display_name"),
+		F.col("profile_url"),
+		F.col("profile_image_storage"),
+		F.col("profile_baner_storage"),
+		F.col("login"),
+		F.col("password").cast("string"),
+		F.col("second_mail"),		
+        F.current_timestamp().alias("ingest_time")
         
         )
         
