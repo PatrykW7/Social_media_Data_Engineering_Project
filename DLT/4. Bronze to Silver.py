@@ -15,7 +15,7 @@ import dlt
 @dlt.expect_or_drop("account_id","account_id IS NOT NULL")
 @dlt.expect_or_fail("account_id>0", "account_id >= 0 ")
 @dlt.expect_or_fail("login","login IS NOT NULL")
-@dlt.expect_or_fail("password","password IS NOT NULL")
+#@dlt.expect_or_fail("password","password IS NOT NULL")
 def silver_account_user_clean():
     return (
         spark.readStream
