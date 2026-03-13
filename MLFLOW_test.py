@@ -1,3 +1,4 @@
+'''
 from pyspark.sql import functions as F
 from pyspark.ml.feature import StringIndexer
 import mlflow
@@ -27,10 +28,10 @@ indexer = StringIndexer(
 )
 
 df_indexed = indexer.fit(df_clean).transform(df_clean)
-df_indexed = df_indexed.withColumn(
-    "potentialInfluencer",
-    F.when(F.col("potentialInfluencer") == True, 1).otherwise(0)
-)
+#df_indexed = df_indexed.withColumn(
+#    "potentialInfluencer",
+#    F.when(F.col("potentialInfluencer") == True, 1).otherwise(0)
+#)
 
 df_indexed = df_indexed.drop("accountAgeCategory")
 pdf = df_indexed.toPandas()
@@ -85,6 +86,15 @@ mlflow.log_metric("recall", recall)
 mlflow.log_metric("f1_score", f1)
 mlflow.log_metric("roc_auc", roc_auc)
 mlflow.sklearn.log_model(model, "model", input_example=X_train.head(5))
+
+
+
+
+
+
+
+
+
 
 
 
