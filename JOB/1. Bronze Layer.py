@@ -4,7 +4,7 @@ from pyspark.sql import functions as F, Window
 from pyspark.sql.types import StringType
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, BooleanType, DoubleType
 
-'''
+
 def bronze_account_user():
     return (
         spark.read
@@ -54,8 +54,8 @@ json_schema = StructType([
     ])),
     # Zagnieżdżona struktura analyticsFlags
     StructField("analyticsFlags", StructType([
-        StructField("potentialBot", BooleanType(), True),
-        StructField("potentialInfluencer", BooleanType(), True)
+        StructField("potentialBot", IntegerType(), True),
+        StructField("potentialInfluencer", IntegerType(), True)
     ])),
     # Zagnieżdżona struktura profileAnalysis
     StructField("profileAnalysis", StructType([
@@ -93,7 +93,7 @@ stg = bronze_account_details()#.filter(F.col("userId").isNotNull())
 (stg.writeStream
     .format("delta")
     .outputMode("append")
-    .option("checkpointLocation", "/content/landing/checkpoints/bronze_acc_detail")
+    .option("checkpointLocation", "/content/landing/checkpoints/bronze_acc_details_json")
     .trigger(availableNow = True)
     .toTable("content_job.bronze.account_details")
  )
@@ -428,7 +428,7 @@ tracked_cols = [col for col in cols if col not in ['comment_id','ingest_time']]
 df_sha256_comments = stg.withColumn("sha_key", F.sha2(F.concat_ws('|', *[F.col(col).cast(StringType()) for col in tracked_cols]), 256))
 df_sha256_comments.writeTo("content_job.temp.df_sha256_comments").createOrReplace()
 
-'''
+
 
 ########################### REACTIONS #############################
 
