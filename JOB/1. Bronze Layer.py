@@ -37,10 +37,10 @@ df_sha256.writeTo("content_job.temp.df_sha256_account_user").createOrReplace()
 json_schema = StructType([
     StructField("userId", IntegerType(), True),
     StructField("friendsCount", IntegerType(), True),
+    StructField("favouritesCount", IntegerType(), True),
     StructField("listedCount", IntegerType(), True),
     StructField("location", StringType(), True),
     StructField("rawDescription", StringType(), True),
-    # Zagnieżdżona struktura accountMetadata
     StructField("accountMetadata", StructType([
         StructField("accountAge", StructType([
             StructField("createdYear", StringType(), True),
@@ -48,23 +48,23 @@ json_schema = StructType([
             StructField("accountAgeCategory", StringType(), True)
         ])),
         StructField("verificationStatus", StructType([
-            StructField("isVerified", BooleanType(), True),
-            StructField("verificationConfidence", DoubleType(), True)
+            StructField("isVerified", IntegerType(), True),
+            StructField("verificationConfidence", StringType(), True)
         ]))
     ])),
-    # Zagnieżdżona struktura analyticsFlags
     StructField("analyticsFlags", StructType([
         StructField("potentialBot", IntegerType(), True),
         StructField("potentialInfluencer", IntegerType(), True)
     ])),
-    # Zagnieżdżona struktura profileAnalysis
     StructField("profileAnalysis", StructType([
         StructField("profileCompletenessScore", DoubleType(), True)
     ])),
-    # Zagnieżdżona struktura networkFeatures
     StructField("networkFeatures", StructType([
-        StructField("networkType", StringType(), True)
+    StructField("networkType", StringType(), True),
+    StructField("influenceIndicators", StructType([
+        StructField("influenceScore", DoubleType(), True)
     ]))
+]))
 ])
 
 
@@ -87,8 +87,9 @@ def bronze_account_details():
 
 
 stg = bronze_account_details()#.filter(F.col("userId").isNotNull())
-#stg.display()
 
+
+         
 
 (stg.writeStream
     .format("delta")
@@ -104,27 +105,35 @@ stg = bronze_account_details()#.filter(F.col("userId").isNotNull())
 
 
 stg = stg.select(
-                "userId",
-                F.date_format(F.make_date(F.col("accountMetadata.accountAge.createdYear").cast("int"), F.col("accountMetadata.accountAge.createdMonth").cast("int"), F.lit(1)),'yyyy-MM').alias("account_creation_year_month"),
-                "accountMetadata.accountAge.accountAgeCategory",
-                "accountMetadata.verificationStatus.isVerified",
-                "accountMetadata.verificationStatus.verificationConfidence",
-                "analyticsFlags.potentialBot",
-                "analyticsFlags.potentialInfluencer",
-                "friendsCount",
-                "listedCount",
-                "location",
-                "rawDescription",
-                "profileAnalysis.profileCompletenessScore",
-                "networkFeatures.networkType",
-                "ingest_time"
-            )
-
-stg = (stg
-        .withColumn("accountAgeCategory", F.regexp_replace("accountAgeCategory", "_", ' '))
-        .withColumn("networkType", F.regexp_replace("networkType", "_", ' '))
+    "userId",
+    F.date_format(F.make_date(F.col("accountMetadata.accountAge.createdYear").cast("int"), F.col("accountMetadata.accountAge.createdMonth").cast("int"), F.lit(1)),'yyyy-MM').alias("account_creation_year_month"),
+    F.col("accountMetadata.accountAge.createdYear").alias("createdYear"),
+    "accountMetadata.verificationStatus.isVerified",
+    "accountMetadata.verificationStatus.verificationConfidence",
+    "analyticsFlags.potentialBot",
+    "analyticsFlags.potentialInfluencer",
+    "friendsCount",
+    "favouritesCount",
+    "networkFeatures.influenceIndicators.influenceScore",
+    "listedCount",
+    "location",
+    "rawDescription",
+    "profileAnalysis.profileCompletenessScore",
+    "networkFeatures.networkType",
+    "ingest_time"
 )
 
+stg = (stg
+    .withColumn("networkType", F.regexp_replace("networkType", "_", ' '))
+    .withColumn("accountAgeCategory",
+        F.when(F.col("createdYear").isin("2026", "2025"), "Recent")
+        .when(F.col("createdYear").isin("2024", "2023"), "Short-term")
+        .when(F.col("createdYear").isin("2022", "2021", "2020"), "Mid-term")
+        .when(F.col("createdYear").isin("2019", "2018", "2017", "2016"), "Long-term")
+        .otherwise("Unknown"))
+)
+
+#stg.display()
 
 cols = stg.columns 
 tracked_cols = [col for col in cols if col not in ['userId', 'ingest_time']]
