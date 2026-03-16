@@ -61,7 +61,12 @@ AS
            det.accountAgeCategory, 
            det.profileCompletenessScore, 
            det.friendsCount, 
+           det.favouritesCount,
+           det.influenceScore,
+           det.account_creation_year_month,
+           det.createdYear,
            det.isVerified,
+           det.listedCount,
            det.verificationConfidence, 
            det.potentialInfluencer, 
            det.potentialBot 

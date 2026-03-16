@@ -111,12 +111,15 @@ sql_code = """
 CREATE TABLE IF NOT EXISTS content_job.silver.account_details (
     userId STRING,
     account_creation_year_month STRING,
+    createdYear INT,
     accountAgeCategory STRING,
-    isVerified BOOLEAN,
-    verificationConfidence DOUBLE,
+    isVerified INT,
+    verificationConfidence STRING,
     potentialBot INT,
     potentialInfluencer INT,
     friendsCount INT,
+    favouritesCount INT,
+    influenceScore DOUBLE,
     listedCount INT,
     location STRING,
     rawDescription STRING,
@@ -157,7 +160,7 @@ USING (
     UNION ALL
 
     --- DELETED ROWS
-    SELECT tgt.userId, tgt.account_creation_year_month, tgt.accountAgeCategory, tgt.isVerified, tgt.verificationConfidence, tgt.potentialBot, tgt.potentialInfluencer, tgt.friendsCount, tgt.listedCount, tgt.location, tgt.rawDescription, tgt.profileCompletenessScore, tgt.networkType, tgt.valid_from, tgt.sha_key, tgt.userId AS mergeKey, 'DELETE' AS action
+    SELECT tgt.userId, tgt.account_creation_year_month, tgt.createdYear, tgt.isVerified, tgt.verificationConfidence, tgt.potentialBot, tgt.potentialInfluencer, tgt.friendsCount, tgt.favouritesCount, tgt.influenceScore, tgt.listedCount, tgt.location, tgt.rawDescription, tgt.profileCompletenessScore, tgt.networkType, tgt.valid_from, tgt.accountAgeCategory, tgt.sha_key, tgt.userId AS mergeKey, 'DELETE' AS action
     FROM content_job.silver.account_details tgt
     LEFT JOIN content_job.temp.df_sha256_account_details src ON tgt.userId = src.userId
     WHERE tgt.is_current = true AND src.userId IS NULL
@@ -176,12 +179,15 @@ USING (
     INSERT (
         userId,
         account_creation_year_month,
+        createdYear,
         accountAgeCategory,
         isVerified,
         verificationConfidence,
         potentialBot,
         potentialInfluencer,
         friendsCount,
+        favouritesCount,
+        influenceScore,
         listedCount,
         location,
         rawDescription,
@@ -195,12 +201,15 @@ USING (
     VALUES (
         src.userId,
         src.account_creation_year_month,
+        src.createdYear,
         src.accountAgeCategory,
         src.isVerified,
         src.verificationConfidence,
         src.potentialBot,
         src.potentialInfluencer,
         src.friendsCount,
+        src.favouritesCount,
+        src.influenceScore,
         src.listedCount,
         src.location,
         src.rawDescription,
