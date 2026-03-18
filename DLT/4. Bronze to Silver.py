@@ -2,7 +2,6 @@ from pyspark.sql import functions as F
 import dlt
 
 
-#spark.sql("USE CATALOG content")
 ##### account_user #####
 @dlt.table(
     name = "silver_account_user_clean",
