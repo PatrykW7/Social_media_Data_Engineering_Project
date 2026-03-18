@@ -32,9 +32,7 @@ def bronze_account_user():
 		F.col("password").cast("string"),
 		F.col("second_mail"),		
         F.current_timestamp().alias("ingest_time")
-        
-        )
-        
+        )  
 )
     
 

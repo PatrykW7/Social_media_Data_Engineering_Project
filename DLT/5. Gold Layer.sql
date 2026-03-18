@@ -28,7 +28,6 @@ LEFT JOIN target.silver_post_hashtags h ON p.post_id = h.post_id
 WHERE is_deleted = False
 GROUP BY t.year, t.month, p.post_id, p.author_id, p.visibility, p.language_code, r.reaction_type
 ORDER BY 1, 2 
-
 ;
 
 
