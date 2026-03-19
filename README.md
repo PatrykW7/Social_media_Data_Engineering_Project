@@ -25,19 +25,21 @@ Two different pipeline implementations were developed:
 
 
 ### 3. Entities Available in the Azure SQL Database
-[Database schema diagram]
-1. Account_users - Stores basic information about users of the social media app
-2. Time - Time table
-3. Follow relationship - Represents follower relationships between users (follows)
-4. Advertisers - Contains information about companies purchasing advertisements in the social media app
-5. Advertisements - Basic data about displayed advertisements
-6. Posts - Contains information about posts created by users
-7. Post_media - Links posts with associated media files such as images, videos, or GIFs
-8. Hashtags - Table containing used/created hashtags
-9. Post_hashtags - Links posts with hashtags
-10. Comments - Stores user comments in posts
-11. Reactions - Contains all users reactions (likes, etc.)
+<img src="/Workspace/Users/patrykwalat7@gmail.com/Social_media_Data_Engineering_Project/images/Schema Diagram ERD.png" width="1000"/>
 
+<oli>
+<li> 1. Account_users - Stores basic information about users of the social media app </li>
+<li> 2. Time - Time table </li>
+<li> 3. Follow relationship - Represents follower relationships between users (follows) </li>
+<li> 4. Advertisers - Contains information about companies purchasing advertisements in the social media app </li>
+<li> 5. Advertisements - Basic data about displayed advertisements </li>
+<li> 6. Posts - Contains information about posts created by users </li>
+<li> 7. Post_media - Links posts with associated media files such as images, videos, or GIFs </li>
+<li> 8. Hashtags - Table containing used/created hashtags </li>
+<li> 9. Post_hashtags - Links posts with hashtags </li>
+<li> 10. Comments - Stores user comments in posts </li>
+<li> 11. Reactions - Contains all users reactions (likes, etc.) </li>
+</oi>
 
 ### 4. Repository Structure
 
@@ -64,7 +66,6 @@ Social_media_Data_Engineering_Project/
 
 ### 5.Azure Databricks Environment Configuration
 #### Resource Group: sm-databricks-rg
-[screen of Azure configuration]
 
 1. Create Azure Databricks Workspace "sm-databricks-ws"
  - Create a new Azure Databricks workspace with the name sm-databricks-ws.
@@ -96,7 +97,9 @@ Azure Managed Identity: Use the Managed Identity from the Access Connector sm-da
 
 ### 6. Azure Key Vault 
 When ingesting data from Azure SQL Database via JDBC in ETL code, sensitive information such as passwords, usernames, table names, and URLs are not hardcoded. I utilize a secret scope integrated with Azure Key Vault to store safely these cretentials
-[screen showing created secrets]
+
+<img src="/Workspace/Users/patrykwalat7@gmail.com/Social_media_Data_Engineering_Project/images/Azure Key Vault.PNG" width="600"/>
+
 
 ### 7. Implementation of Databricks Workflow Job
 [screen of Workflow Job]
@@ -135,7 +138,8 @@ df_sha256.writeTo("content_job.temp.df_sha256_account_user").createOrReplace()
 ```
 
 ##### 7.2. JSON files handle
-[screen of azure storage]
+<img src="/Workspace/Users/patrykwalat7@gmail.com/Social_media_Data_Engineering_Project/images/Azure JSON files.PNG" width="600"/>
+
 The JSON files contain detailed user information, with each file storing a nested structure for several thousand users. The data pipeline employs a StructType schema to extract specific fields from these nested structures.
 ```python
 json_schema = StructType([
@@ -257,7 +261,7 @@ ORDER BY 1
 ```
 
 ### 8. Implementation of Lakeflow Spark Declarative Pipelines SDP (previously Delta Live Tables DLT) 
-[screen of SDP graph]
+<img src="/Workspace/Users/patrykwalat7@gmail.com/Social_media_Data_Engineering_Project/images/SDP Graph.gif" width="800"/>
 As I mentioned at the very beginning, project was aslso implemented using **Lakeflow Spark Declarative Pipelines (SDP)**, at the time of project development, the old name **Delta Live Tables (DLT)** was in use. Using SDP enables implementation based on a declarative approach.
 
 #### 8.1 SDP Bronze Layer
@@ -371,7 +375,6 @@ During model training I defined explanatory variables and target variable, split
 
 ```python
 models = {
-
     "XGBoost": (
         XGBClassifier(
             random_state=42,
@@ -384,7 +387,6 @@ models = {
             "learning_rate": [0.01, 0.05]
         }
     ),
-
     "RandomForest": (
         RandomForestClassifier(random_state=42),
         {
@@ -392,14 +394,12 @@ models = {
             "max_depth": [5, 10]
         }
     ),
-
     "LogisticRegression": (
         LogisticRegression(max_iter=2000),
         {
             "C": [0.01, 0.1, 1, 10]
         }
     ),
-
     "SVM": (
         SVC(probability=True),
         {
