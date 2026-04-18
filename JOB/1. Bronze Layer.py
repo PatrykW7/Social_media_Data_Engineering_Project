@@ -26,7 +26,7 @@ stg = stg.withColumn("rn", F.row_number().over(w)).filter(F.col("rn") == 1).drop
 stg.writeTo("content_job.bronze.account_user").createOrReplace()
 
 
-spark.sql("VACUUM content_job.bronze_account_user RETAIN 720 HOURS")
+spark.sql("VACUUM content_job.bronze.account_user RETAIN 720 HOURS")
 
 
 cols = stg.columns
