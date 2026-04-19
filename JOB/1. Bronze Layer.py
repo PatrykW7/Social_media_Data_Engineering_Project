@@ -199,6 +199,7 @@ df_sha256.writeTo("content_job.temp.df_sha256_time").createOrReplace()
 
 spark.sql("VACUUM content_job.temp.df_sha256_time RETAIN 720 HOURS")
 
+
 ########################### FOLLOW RELATIONSHIP #############################
 
 
@@ -311,6 +312,7 @@ df_sha256.writeTo("content_job.temp.df_sha256_advertisements").createOrReplace()
 
 spark.sql("VACUUM content_job.temp.df_sha256_advertisements RETAIN 720 HOURS")
 
+
 ########################### POSTS #############################
 
 
@@ -343,6 +345,7 @@ df_sha256.writeTo("content_job.temp.df_sha256_posts").createOrReplace()
 spark.sql("VACUUM content_job.temp.df_sha256_posts RETAIN 720 HOURS")
 
 ########################### POST MEDIA #############################
+
 
 
 def bronze_post_media():
@@ -411,6 +414,7 @@ df_sha256_hashtags.writeTo("content_job.temp.df_sha256_hashtags").createOrReplac
 spark.sql("VACUUM content_job.temp.df_sha256_hashtags RETAIN 720 HOURS")
 
 
+
 ########################### POST HASHTAG #############################
 
 def bronze_post_hashtag():
@@ -477,7 +481,6 @@ spark.sql("VACUUM content_job.temp.df_sha256_comments RETAIN 720 HOURS")
 
 
 ########################### REACTIONS #############################
-
 
 def bronze_reactions():
     return(

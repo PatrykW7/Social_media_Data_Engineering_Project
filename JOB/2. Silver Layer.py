@@ -1,5 +1,7 @@
+
+
 sql_code = """
-CREATE TABLE IF NOT EXISTS content_job.silver.account_user  (
+CREATE TABLE IF NOT EXISTS content_job.silver.account_user (
        account_id INT,
        account_name STRING,
        is_group BOOLEAN,
@@ -102,12 +104,15 @@ USING (
 
 spark.sql(sql_code)
 
+spark.sql("OPTIMIZE content_job.silver.account_user")
+
 
 spark.sql("VACUUM content_job.silver.account_user RETAIN 720 HOURS")
 
 
 
 
+
 ############# ACCOUNT DETAILS - JSON ############
 
 
@@ -133,10 +138,9 @@ CREATE TABLE IF NOT EXISTS content_job.silver.account_details (
     valid_from TIMESTAMP,
     valid_to TIMESTAMP,
     is_current BOOLEAN
-    
-    
 )
-USING DELTA;
+USING DELTA
+CLUSTER BY (userId);
 
 """
 
@@ -229,9 +233,15 @@ USING (
 
 spark.sql(sql_code)
 
+spark.sql("OPTIMIZE content_job.silver.account_details")
+
+spark.sql("VACUUM content_job.silver.account_details RETAIN 720 HOURS")
+
+
+
+
 
 ######################## TIME ######################
-
 
 
 
@@ -250,8 +260,8 @@ valid_from TIMESTAMP,
 valid_to TIMESTAMP,
 is_current BOOLEAN
 )
-
-USING DELTA;
+USING DELTA
+CLUSTER BY (time_id);
 
 
 """
@@ -321,11 +331,15 @@ INSERT
         true
     
 )
-
-
 """
 
 spark.sql(sql_code)
+
+
+spark.sql("OPTIMIZE content_job.silver.time")
+
+spark.sql("VACUUM content_job.silver.time RETAIN 720 HOURS")
+
 
 
 
@@ -340,11 +354,10 @@ sha_key STRING,
 valid_from TIMESTAMP,
 valid_to TIMESTAMP,
 is_current BOOLEAN    
-
 )
 
-USING DELTA;
-
+USING DELTA
+CLUSTER BY (follower_account_id, followed_account_id);
 """
 
 spark.sql(sql_code)
@@ -402,8 +415,13 @@ WHEN NOT MATCHED THEN
 
 """
 
-
 spark.sql(sql_code)
+
+spark.sql("OPTIMIZE content_job.silver.follow_relationship")
+
+spark.sql("VACUUM content_job.silver.follow_relationship RETAIN 720 HOURS")
+
+
 
 
 ### ADVERTISERS
@@ -418,11 +436,9 @@ CREATE TABLE IF NOT EXISTS content_job.silver.advertisers(
     valid_from TIMESTAMP,
     valid_to TIMESTAMP,
     is_current BOOLEAN
-
 )
-
-USING DELTA;
-
+USING DELTA
+CLUSTER BY (advertiser_id);
 """
 
 spark.sql(sql_code)
@@ -486,10 +502,14 @@ VALUES (
        )
 
 """
-
-
-
 spark.sql(sql_code)
+
+spark.sql("OPTIMIZE content_job.silver.advertisers")
+
+spark.sql("VACUUM content_job.silver.advertisers RETAIN 720 HOURS")
+
+
+
 
 
 ####### ADVERTISEMENTS
@@ -513,11 +533,9 @@ CREATE TABLE IF NOT EXISTS content_job.silver.advertisements(
     valid_from TIMESTAMP,
     valid_to TIMESTAMP,
     is_current BOOLEAN
-
 )
-USING DELTA;
-
-
+USING DELTA
+CLUSTER BY (advertisement_id);
 """
 
 spark.sql(sql_code)
@@ -598,7 +616,12 @@ VALUES(
 
 """
 
+spark.sql(sql_code)
 
+
+spark.sql("OPTIMIZE content_job.silver.advertisements")
+
+spark.sql("VACUUM content_job.silver.advertisements RETAIN 720 HOURS")
 
 
 
@@ -620,11 +643,9 @@ CREATE TABLE IF NOT EXISTS content_job.silver.posts(
     valid_from TIMESTAMP,
     valid_to TIMESTAMP,
     is_current BOOLEAN
-
 )
-
-USING DELTA;
-
+USING DELTA
+CLUSTER BY (post_id);
 """
 
 spark.sql(sql_code)
@@ -696,8 +717,12 @@ VALUES(
 
 """
 
-
 spark.sql(sql_code)
+
+spark.sql("OPTIMIZE content_job.silver.posts")
+
+spark.sql("VACUUM content_job.silver.posts RETAIN 720 HOURS")
+
 
 
 sql_code = """
@@ -712,8 +737,8 @@ CREATE TABLE IF NOT EXISTS content_job.silver.post_media (
        valid_to TIMESTAMP,
        is_current BOOLEAN
 )
-
-USING DELTA;
+USING DELTA
+CLUSTER BY (media_id, post_id);
 
 """
 
@@ -782,7 +807,9 @@ VALUES(
 
 spark.sql(sql_code)
 
+spark.sql("OPTIMIZE content_job.silver.post_media")
 
+spark.sql("VACUUM content_job.silver.post_media RETAIN 720 HOURS")
 
 
 
@@ -799,9 +826,8 @@ CREATE TABLE IF NOT EXISTS content_job.silver.hashtags(
     valid_to TIMESTAMP,
     is_current BOOLEAN
     )
-
-USING DELTA;
-
+USING DELTA
+CLUSTER BY (hashtag_id);
 """
 
 spark.sql(sql_code)
@@ -865,6 +891,9 @@ INSERT
 
 spark.sql(sql_code)
 
+spark.sql("OPTIMIZE content_job.silver.hashtags")
+
+spark.sql("VACUUM content_job.silver.hashtags RETAIN 720 HOURS")
 
 
 
@@ -877,8 +906,8 @@ CREATE TABLE IF NOT EXISTS content_job.silver.post_hashtag(
     valid_to TIMESTAMP,
     is_current BOOLEAN 
 )
-
 USING DELTA
+CLUSTER BY (post_id, hashtag_id)
 """
 
 spark.sql(sql_code)
@@ -943,6 +972,11 @@ VALUES(
 
 spark.sql(sql_code)
 
+spark.sql("OPTIMIZE content_job.silver.post_hashtag")
+
+spark.sql("VACUUM content_job.silver.post_hashtag RETAIN 720 HOURS")
+
+
 
 sql_code = """
 CREATE TABLE IF NOT EXISTS content_job.silver.comments(
@@ -957,11 +991,9 @@ CREATE TABLE IF NOT EXISTS content_job.silver.comments(
     valid_from TIMESTAMP,
     valid_to TIMESTAMP,
     is_current BOOLEAN
-    
 )
-    
-USING DELTA;
-
+USING DELTA
+CLUSTER BY (comment_id);
 """
 
 spark.sql(sql_code)
@@ -1031,7 +1063,9 @@ VALUES(
 
 spark.sql(sql_code)
 
+spark.sql("OPTIMIZE content_job.silver.comments")
 
+spark.sql("VACUUM content_job.silver.comments RETAIN 720 HOURS")
 
 
 
@@ -1045,1054 +1079,13 @@ CREATE TABLE IF NOT EXISTS content_job.silver.reactions(
     account_id INT,
     post_id INT,
     reaction_type VARCHAR(25),
-    sha_key STRING,
-    valid_from TIMESTAMP,
-    valid_to TIMESTAMP,
-    is_current BOOLEAN
-    
-)
-
-USING DELTA;
-
-"""
-
-spark.sql(sql_code)
-
-
-sql_code = """
-MERGE INTO content_job.silver.reactions tgt 
-USING (
-    --- INSERT NEW ROWS
-    SELECT src_null.*, NULL AS mergeKey, 'INSERT' AS action FROM content_job.temp.df_sha256_reactions src_null
-    LEFT JOIN content_job.silver.reactions tgt ON src_null.reaction_id = tgt.reaction_id AND tgt.is_current = true
-    WHERE tgt.reaction_id IS NULL OR tgt.sha_key <> src_null.sha_key
-
-    UNION ALL
-
-    --- UPDATE ROWS THAT HAD CHANGED 
-    SELECT src.*, src.reaction_id AS mergeKey, 'UPDATE' AS action FROM content_job.temp.df_sha256_reactions src
-    JOIN content_job.silver.reactions tgt ON src.reaction_id = tgt.reaction_id 
-    WHERE tgt.is_current = true AND src.sha_key <> tgt.sha_key
-
-    UNION ALL
-
-    --- DELETED ROWS
-    SELECT tgt.reaction_id, tgt.reacted_at_time, tgt.account_id, tgt.post_id, tgt.reaction_type, tgt.valid_from, tgt.sha_key,
-    tgt.reaction_id AS mergeKey, 'DELETE' AS ACTION
-    FROM content_job.silver.reactions tgt 
-    LEFT JOIN content_job.temp.df_sha256_reactions src ON tgt.reaction_id = src.reaction_id
-    WHERE tgt.is_current = true AND src.reaction_id IS NULL 
-    
-    
-    ) src
-
-ON tgt.reaction_id = src.mergeKey AND tgt.is_current = true
-
-WHEN MATCHED AND tgt.sha_key <> src.sha_key OR action = 'DELETE' THEN UPDATE
-SET 
-    tgt.valid_to = src.ingest_time,
-    tgt.is_current = false
-
-
-WHEN NOT MATCHED THEN 
-INSERT (
-        reaction_id,
-        reacted_at_time,
-        account_id,
-        post_id,
-        reaction_type,
-        sha_key,
-        valid_from,
-        valid_to,
-        is_current
-        )
-
-VALUES(
-        src.reaction_id,
-        src.reacted_at_time,
-        src.account_id,
-        src.post_id,
-        src.reaction_type,
-        src.sha_key,
-        src.ingest_time,
-        to_timestamp('9999-12-31 23:59:59'),
-        true
-        )
-
-"""
-
-spark.sql(sql_code)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-############# ACCOUNT DETAILS - JSON ############
-
-
-sql_code = """
-CREATE TABLE IF NOT EXISTS content_job.silver.account_details (
-    userId STRING,
-    account_creation_year_month STRING,
-    createdYear INT,
-    accountAgeCategory STRING,
-    isVerified INT,
-    verificationConfidence STRING,
-    potentialBot INT,
-    potentialInfluencer INT,
-    friendsCount INT,
-    favouritesCount INT,
-    influenceScore DOUBLE,
-    listedCount INT,
-    location STRING,
-    rawDescription STRING,
-    profileCompletenessScore DOUBLE,
-    networkType STRING,
-    sha_key STRING,
-    valid_from TIMESTAMP,
-    valid_to TIMESTAMP,
-    is_current BOOLEAN
-    
-    
-)
-USING DELTA;
-
-"""
-
-
-spark.sql(sql_code)
-
-
-sql_code = """
-MERGE INTO content_job.silver.account_details AS tgt
-USING (
-    --- COMPLETELY NEW ROWS TO INSERT 
-    SELECT src_null.*, NULL AS mergeKey, 'INSERT' AS action 
-    FROM content_job.temp.df_sha256_account_details AS src_null
-    LEFT JOIN content_job.silver.account_details tgt ON src_null.userId = tgt.userId AND tgt.is_current = true
-    WHERE tgt.userId IS NULL OR tgt.sha_key <> src_null.sha_key
-
-    UNION ALL
-
-    --- ROWS WHICH HAD CHANGED 
-    SELECT src.*, src.userId AS mergeKey, 'UPDATE' AS action
-    FROM content_job.temp.df_sha256_account_details AS src
-    JOIN content_job.silver.account_details tgt ON src.userId = tgt.userId
-    WHERE tgt.is_current = true AND src.sha_key <> tgt.sha_key  
-
-    UNION ALL
-
-    --- DELETED ROWS
-    SELECT tgt.userId, tgt.account_creation_year_month, tgt.createdYear, tgt.isVerified, tgt.verificationConfidence, tgt.potentialBot, tgt.potentialInfluencer, tgt.friendsCount, tgt.favouritesCount, tgt.influenceScore, tgt.listedCount, tgt.location, tgt.rawDescription, tgt.profileCompletenessScore, tgt.networkType, tgt.valid_from, tgt.accountAgeCategory, tgt.sha_key, tgt.userId AS mergeKey, 'DELETE' AS action
-    FROM content_job.silver.account_details tgt
-    LEFT JOIN content_job.temp.df_sha256_account_details src ON tgt.userId = src.userId
-    WHERE tgt.is_current = true AND src.userId IS NULL
-
-
-    ) src
-
-    ON tgt.userId = src.mergeKey AND tgt.is_current = True
-
-    WHEN MATCHED AND tgt.sha_key <> src.sha_key OR src.action = 'DELETE' THEN UPDATE 
-    SET 
-        tgt.is_current = false,
-        tgt.valid_to = src.ingest_time
-
-    WHEN NOT MATCHED THEN 
-    INSERT (
-        userId,
-        account_creation_year_month,
-        createdYear,
-        accountAgeCategory,
-        isVerified,
-        verificationConfidence,
-        potentialBot,
-        potentialInfluencer,
-        friendsCount,
-        favouritesCount,
-        influenceScore,
-        listedCount,
-        location,
-        rawDescription,
-        profileCompletenessScore,
-        networkType,
-        sha_key,
-        valid_from,
-        valid_to,
-        is_current
-    ) 
-    VALUES (
-        src.userId,
-        src.account_creation_year_month,
-        src.createdYear,
-        src.accountAgeCategory,
-        src.isVerified,
-        src.verificationConfidence,
-        src.potentialBot,
-        src.potentialInfluencer,
-        src.friendsCount,
-        src.favouritesCount,
-        src.influenceScore,
-        src.listedCount,
-        src.location,
-        src.rawDescription,
-        src.profileCompletenessScore,
-        src.networkType,
-        src.sha_key,
-        src.ingest_time,
-        to_timestamp('9999-12-31 23:59:59'),
-        true
-        ) 
-
-"""
-
-spark.sql(sql_code)
-
-
-######################## TIME ######################
-
-
-
-
-sql_code = """
-CREATE TABLE IF NOT EXISTS content_job.silver.time(
-time_id INT,
-date DATE,
-year INT,
-month INT,
-day INT,
-quarter INT,
-week_number INT,
-half_year INT,
-sha_key STRING,
-valid_from TIMESTAMP,
-valid_to TIMESTAMP,
-is_current BOOLEAN
-)
-
-USING DELTA;
-
-
-"""
-
-spark.sql(sql_code)
-
-
-sql_code = """
-MERGE INTO content_job.silver.time tgt 
-USING (
-       --- INSERT COMPLETELY NEW ROWS
-       SELECT src_null.*, NULL AS mergeKey, 'INSERT' AS action
-       FROM content_job.temp.df_sha256_time src_null
-       LEFT JOIN content_job.silver.time tgt ON src_null.time_id = tgt.time_id AND tgt.is_current = true
-       WHERE tgt.time_id IS NULL OR tgt.sha_key <> src_null.sha_key
-
-       UNION ALL
-    
-       --- UPDATE ROWS THAT HAD CHANGED
-       SELECT src.*, src.time_id AS mergeKey, 'UPDATE' AS action
-       FROM content_job.temp.df_sha256_time src 
-       JOIN content_job.silver.time tgt ON src.time_id = tgt.time_id
-       WHERE tgt.is_current = true AND tgt.sha_key <> src.sha_key 
-
-       UNION ALL
-
-       --- DELETED ROWS
-       SELECT tgt.time_id, tgt.date, tgt.year, tgt.month, tgt.day, tgt.quarter, tgt.week_number, tgt.half_year, tgt.valid_from, tgt.sha_key, tgt.time_id AS mergeKey, 'DELETE' AS action
-       FROM content_job.silver.time tgt 
-       LEFT JOIN content_job.temp.df_sha256_time src ON tgt.time_id = src.time_id
-       WHERE tgt.is_current = true AND src.time_id IS NULL
-
-) src 
-ON src.mergeKey = tgt.time_id AND tgt.is_current = true
-
-WHEN MATCHED AND src.sha_key <> tgt.sha_key OR src.action = 'DELETE' THEN UPDATE SET 
-    tgt.is_current = false,
-    tgt.valid_to = src.ingest_time
-
-WHEN NOT MATCHED THEN 
-INSERT 
-     (
-         time_id,
-         date,
-         year,
-         month,
-         day,
-         quarter,
-         week_number,
-         half_year,
-         sha_key,
-         valid_from,
-         valid_to,
-         is_current)
-     VALUES 
-        (src.time_id,
-        src.date,
-        src.year,
-        src.month,
-        src.day,
-        src.quarter,
-        src.week_number,
-        src.half_year,
-        src.sha_key,
-        src.ingest_time,
-        to_timestamp('9999-12-31 23:59:59'),
-        true
-    
-)
-
-
-"""
-
-spark.sql(sql_code)
-
-
-
-sql_code = """
-CREATE TABLE IF NOT EXISTS content_job.silver.follow_relationship (
-follower_account_id INT,
-followed_account_id INT,
-followed_at_time_id INT,
-status VARCHAR(150),
-source VARCHAR(150),
-sha_key STRING,
-valid_from TIMESTAMP,
-valid_to TIMESTAMP,
-is_current BOOLEAN    
-
-)
-
-USING DELTA;
-
-"""
-
-spark.sql(sql_code)
-
-sql_code = """
-MERGE INTO content_job.silver.follow_relationship tgt
-USING (
-    SELECT src_null.*, NULL AS mergeKey
-    FROM content_job.temp.df_sha256_follow_relationship src_null
-    LEFT JOIN content_job.silver.follow_relationship tgt 
-    ON src_null.follower_account_id = tgt.follower_account_id 
-    AND src_null.followed_account_id = tgt.followed_account_id
-    WHERE CONCAT(tgt.follower_account_id, tgt.followed_account_id) IS NULL
-    
-    UNION ALL
-
-    SELECT src.*, CONCAT(src.follower_account_id, src.followed_account_id) AS mergeKey
-    FROM content_job.temp.df_sha256_follow_relationship src
-    JOIN content_job.silver.follow_relationship tgt ON 
-    CONCAT(src.follower_account_id, src.followed_account_id) = CONCAT(tgt.follower_account_id, tgt.followed_account_id)
-    WHERE tgt.is_current AND tgt.sha_key <> src.sha_key
-    
-) src
-
-ON src.mergeKey = CONCAT(tgt.follower_account_id, tgt.followed_account_id) AND tgt.is_current = true
-
-WHEN MATCHED AND tgt.sha_key <> src.sha_key THEN UPDATE 
-    SET 
-    tgt.valid_to = src.ingest_time,
-    tgt.is_current = false
-
-WHEN NOT MATCHED THEN
-    INSERT (
-        follower_account_id,
-        followed_account_id,
-        followed_at_time_id,
-        status,
-        source,
-        sha_key,
-        valid_from,
-        valid_to,
-        is_current
-    )
-    VALUES (
-        src.follower_account_id,
-        src.followed_account_id,
-        src.followed_at_time_id,
-        src.status,
-        src.source,
-        src.sha_key,
-        src.ingest_time,
-        to_timestamp('9999-12-31 23:59:59'),
-        true
-        )
-
-"""
-
-
-spark.sql(sql_code)
-
-
-### ADVERTISERS
-sql_code = """
-CREATE TABLE IF NOT EXISTS content_job.silver.advertisers(
-    advertiser_id INT,
-    advertiser_name VARCHAR(250),
-    destination_group VARCHAR(150),
-    billing_account_code VARCHAR(50),
-    billing_status VARCHAR(50),
-    sha_key STRING,
-    valid_from TIMESTAMP,
-    valid_to TIMESTAMP,
-    is_current BOOLEAN
-
-)
-
-USING DELTA;
-
-"""
-
-spark.sql(sql_code)
-
-
-sql_code = """
-MERGE INTO content_job.silver.advertisers tgt 
-USING (
-       --- INSERT COMPLETELY NEW ROWS
-       SELECT src_null.* , NULL AS mergeKey, 'INSERT' AS action FROM content_job.temp.df_sha256_advertisers src_null
-       LEFT JOIN content_job.silver.advertisers tgt ON tgt.advertiser_id = src_null.advertiser_id
-       WHERE tgt.advertiser_id IS NULL OR tgt.sha_key <> src_null.sha_key
-       
-       UNION ALL
-
-       --- ROWS THAT HAD CHANGED 
-       SELECT src.*, src.advertiser_id AS mergeKey, 'UPDATE' AS action FROM content_job.temp.df_sha256_advertisers src
-       JOIN content_job.silver.advertisers tgt ON tgt.advertiser_id = src.advertiser_id 
-       WHERE tgt.is_current = true AND tgt.sha_key <> src.sha_key
-       
-       UNION ALL
-
-       --- DELETED ROWS
-        SELECT tgt.advertiser_id, tgt.advertiser_name, tgt.destination_group, tgt.billing_account_code, tgt.billing_status, tgt.valid_from, tgt.sha_key,
-        tgt.advertiser_id, 'DELETE' AS action
-        FROM content_job.silver.advertisers tgt
-        LEFT JOIN content_job.temp.df_sha256_advertisers src ON tgt.advertiser_id = src.advertiser_id
-        WHERE src.advertiser_id IS NULL AND tgt.is_current = true
-
-       ) src
-
-ON tgt.advertiser_id = src.mergeKey AND tgt.is_current = true
-
-WHEN MATCHED AND tgt.sha_key <> src.sha_key OR src.action = 'DELETE' THEN UPDATE 
-SET 
-   tgt.is_current = false,
-   tgt.valid_to = src.ingest_time
-
-WHEN NOT MATCHED THEN
-INSERT(
-       advertiser_id,
-       advertiser_name,
-       destination_group,
-       billing_account_code,
-       billing_status,
-       sha_key,
-       valid_from,
-       valid_to,
-       is_current
-       )
-VALUES (
-       src.advertiser_id,
-       src.advertiser_name,
-       src.destination_group,
-       src.billing_account_code,
-       src.billing_status,
-       src.sha_key,
-       src.ingest_time,
-       to_timestamp('9999-12-31 23:59:59'),
-       true
-       )
-
-"""
-
-
-
-spark.sql(sql_code)
-
-
-####### ADVERTISEMENTS
-
-sql_code = """
-CREATE TABLE IF NOT EXISTS content_job.silver.advertisements(
-    advertisement_id INT,
-    advertiser_id INT,
-    ad_name VARCHAR(50),
-    ad_title VARCHAR(100),
-    price_USD FLOAT,
-    pricing_model STRING,
-    start_at INT,
-    end_at INT,
-    ad_text STRING,
-    landing_url VARCHAR(150),
-    status VARCHAR(50),
-    Euro_price DOUBLE,
-    created_at_time INT,
-    sha_key STRING,
-    valid_from TIMESTAMP,
-    valid_to TIMESTAMP,
-    is_current BOOLEAN
-
-)
-USING DELTA;
-
-
-"""
-
-spark.sql(sql_code)
-
-
-sql_code = """
-MERGE INTO content_job.silver.advertisements tgt
-USING (
-       --- INSERT COMPLETELY NEW ROWS
-       SELECT src_null.*, NULL AS mergeKey, 'INSERT' AS action FROM content_job.temp.df_sha256_advertisements src_null\
-       LEFT JOIN content_job.silver.advertisements tgt ON tgt.advertisement_id = src_null.advertisement_id AND tgt.is_current = true
-       WHERE tgt.advertisement_id IS NULL OR tgt.sha_key <> src_null.sha_key
-
-       UNION ALL
-
-       --- ROWS THAT HAD CHANGED
-       SELECT src.*, src.advertisement_id AS mergeKey, 'UPDATE' AS action FROM content_job.temp.df_sha256_advertisements src
-       JOIN content_job.silver.advertisements tgt ON src.advertisement_id = tgt.advertisement_id
-       WHERE tgt.is_current = true AND tgt.sha_key <> src.sha_key 
-
-        UNION ALL
-
-        --- DELETED ROWS
-        SELECT tgt.advertisement_id, tgt.advertiser_id, tgt.ad_name, tgt.ad_title, tgt.price_USD, tgt.pricing_model, tgt.start_at, tgt.end_at, tgt.ad_text, tgt.landing_url,
-        tgt.status, tgt.created_at_time, tgt.valid_from, tgt.Euro_price, tgt.sha_key, tgt.advertisement_id AS mergeKey, 'DELETE' AS action
-        FROM content_job.silver.advertisements tgt 
-        LEFT JOIN content_job.temp.df_sha256_advertisements src ON tgt.advertisement_id = src.advertisement_id
-        WHERE tgt.is_current = true AND src.advertisement_id IS NULL
-
-       ) src
-
-ON tgt.advertisement_id = src.mergeKey AND tgt.is_current = true
-
-WHEN MATCHED AND tgt.sha_key <> src.sha_key OR src.action = 'DELETE' THEN UPDATE 
-SET 
-   tgt.valid_to = src.ingest_time,
-   tgt.is_current = false
-
-WHEN NOT MATCHED THEN 
-INSERT(
-       advertisement_id,
-       advertiser_id,
-       ad_name,
-       ad_title,
-       price_USD,
-       pricing_model,
-       start_at,
-       end_at,
-       ad_text,
-       landing_url,
-       status,
-       Euro_price,
-       created_at_time,
-       sha_key,
-       valid_from,
-       valid_to,
-       is_current
-       )
-VALUES(
-       src.advertisement_id,
-       src.advertiser_id,
-       src.ad_name,
-       src.ad_title,
-       src.price_USD,
-       src.pricing_model,
-       src.start_at,
-       src.end_at,
-       src.ad_text,
-       src.landing_url,
-       src.status,
-       src.Euro_price,
-       src.created_at_time,
-       src.sha_key,
-       src.ingest_time,
-       to_timestamp('9999-12-31 23:59:59'),
-       true
-       )
-
-"""
-
-
-
-
-
-
-
-####### POSTS######
-sql_code = """
-CREATE TABLE IF NOT EXISTS content_job.silver.posts(
-    post_id INT,
-    post_text STRING,
-    author_id INT,
-    visibility VARCHAR(200),
-    created_at_time INT,
-    reply_to_post_time INT,
-    language_code VARCHAR(100),
-    advertisement_id INT,
-    is_deleted BOOLEAN,
-    sha_key STRING,
-    valid_from TIMESTAMP,
-    valid_to TIMESTAMP,
-    is_current BOOLEAN
-
-)
-
-USING DELTA;
-
-"""
-
-spark.sql(sql_code)
-
-
-
-sql_code = """
-MERGE INTO content_job.silver.posts tgt
-USING (
-       --- INSERT COMPLETELTY NEW ROWS
-       SELECT src_null.*, NULL AS mergeKey, 'INSERT' AS action FROM content_job.temp.df_sha256_posts src_null
-       LEFT JOIN content_job.silver.posts tgt ON src_null.post_id = tgt.post_id AND tgt.is_current = true
-       WHERE tgt.post_id IS NULL AND tgt.sha_key <> src_null.sha_key
-
-       --- ROWS THAT HAD CHANGED IN THE PAST
-       UNION ALL
-       SELECT src.*, src.post_id as mergeKey, 'UPDATE' AS action FROM content_job.temp.df_sha256_posts src
-       JOIN content_job.silver.posts tgt ON tgt.post_id = src.post_id
-       WHERE tgt.is_current = true AND src.sha_key <> tgt.sha_key
-       
-       UNION ALL
-
-       --- DELETED ROWS
-        SELECT tgt.post_id, tgt.post_text, tgt.author_id, tgt.visibility, tgt.created_at_time, tgt.reply_to_post_time, tgt.language_code, tgt.advertisement_id, 
-        tgt.is_deleted, tgt.valid_from, tgt.sha_key, tgt.post_id, 'DELETE' AS action
-        FROM content_job.silver.posts tgt 
-        LEFT JOIN content_job.temp.df_sha256_posts src ON tgt.post_id = src.post_id 
-        WHERE tgt.is_current = true AND src.post_id IS NULL
-
-       ) src
-ON tgt.post_id = src.mergeKey AND tgt.is_current = true 
-
-WHEN MATCHED AND tgt.sha_key <> src.sha_key OR src.action = 'DELETE' THEN UPDATE
-SET
-   tgt.is_current = false,
-   tgt.valid_to = src.ingest_time
-
-WHEN NOT MATCHED THEN 
-INSERT(
-       post_id,
-       post_text,
-       author_id,
-       visibility,
-       created_at_time,
-       reply_to_post_time,
-       language_code,
-       advertisement_id,
-       is_deleted,
-       sha_key,
-       valid_from,
-       valid_to,
-       is_current
-       )
-VALUES(
-       src.post_id,
-       src.post_text,
-       src.author_id,
-       src.visibility,
-       src.created_at_time,
-       src.reply_to_post_time,
-       src.language_code,
-       src.advertisement_id,
-       src.is_deleted,
-       src.sha_key,
-       src.ingest_time,
-       to_timestamp('9999-12-31 23:59:59'),   
-       true
-       )
-
-"""
-
-
-spark.sql(sql_code)
-
-
-sql_code = """
-CREATE TABLE IF NOT EXISTS content_job.silver.post_media (
-       media_id INT,
-       post_id INT,
-       media_type VARCHAR(50),
-       media_storage VARCHAR(70),
-       duration_sec DOUBLE,
-       sha_key STRING,
-       valid_from TIMESTAMP,
-       valid_to TIMESTAMP,
-       is_current BOOLEAN
-)
-
-USING DELTA;
-
-"""
-
-spark.sql(sql_code)
-
-#### CHECK TOMORROW DOES IT WORK CORRECTLY 
-sql_code = """
-MERGE INTO content_job.silver.post_media tgt
-USING (
-       --- COMPLETELY NEW ROWS
-       SELECT src_null.*, NULL as mergeKey, 'INSERT' AS action FROM content_job.temp.df_sha256_post_media src_null
-       LEFT JOIN content_job.silver.post_media tgt ON src_null.media_id = tgt.media_id AND src_null.post_id = tgt.post_id 
-       WHERE tgt.media_id IS NULL AND tgt.post_id IS NULL OR tgt.sha_key <> src_null.sha_key
-       
-       
-       
-       UNION ALL
-
-       --- ROWS THAT HAD CHANGED
-       SELECT src.*, CONCAT(src.media_id, src.post_id) as mergeKey, 'UPDATE' AS action FROM content_job.temp.df_sha256_post_media src
-       JOIN content_job.silver.post_media tgt ON src.media_id = tgt.media_id AND src.post_id = tgt.post_id
-       WHERE tgt.is_current AND tgt.sha_key <> src.sha_key
-
-       UNION ALL
-
-       --- DELETED ROWS
-       SELECT tgt.media_id, tgt.post_id, tgt.media_type, tgt.media_storage, tgt.duration_sec, tgt.valid_from, tgt.sha_key, CONCAT(tgt.media_id, tgt.post_id) as mergeKey,
-       'DELETE' AS action FROM content_job.silver.post_media tgt 
-       LEFT JOIN content_job.temp.df_sha256_post_media src ON tgt.media_id = src.media_id AND tgt.post_id = src.post_id
-       WHERE tgt.is_current = true AND src.media_id IS NULL AND src.post_id IS NULL
-
-       ) src
-
-ON CONCAT(tgt.media_id, tgt.post_id) = CONCAT(src.media_id, src.post_id) AND tgt.is_current = true
-
-WHEN MATCHED AND tgt.sha_key <> src.sha_key OR src.action = 'DELETE' THEN UPDATE 
-SET 
-   tgt.valid_to = src.ingest_time,
-   tgt.is_current = false
- 
-
-WHEN NOT MATCHED THEN 
-INSERT(
-       media_id,
-       post_id,
-       media_type,
-       media_storage,
-       duration_sec,
-       sha_key,
-       valid_from,
-       valid_to,
-       is_current
-       )
-VALUES(
-       src.media_id,
-       src.post_id,
-       src.media_type,
-       src.media_storage,
-       src.duration_sec,
-       src.sha_key,
-       src.ingest_time,
-       to_timestamp('9999-12-31 23:59:59'),
-       true)
-
-"""
-
-spark.sql(sql_code)
-
-
-
-
-
-####### HASHTAGS ######
-
-
-sql_code = """
-CREATE TABLE IF NOT EXISTS content_job.silver.hashtags(
-    hashtag_id INT,
-    tag_text VARCHAR(25),
-    first_use_time INT,
-    sha_key STRING,
-    valid_from TIMESTAMP,
-    valid_to TIMESTAMP,
-    is_current BOOLEAN
-    )
-
-USING DELTA;
-
-"""
-
-spark.sql(sql_code)
-
-
-sql_code = """
-MERGE INTO content_job.silver.hashtags tgt
-USING (
-       --- INSERTING COMPLETELY NEW ROWS
-       SELECT src_null.*, NULL AS mergeKey, 'INSERT' AS action FROM content_job.temp.df_sha256_hashtags src_null
-       LEFT JOIN content_job.silver.hashtags tgt ON src_null.hashtag_id = tgt.hashtag_id AND tgt.is_current = true
-       WHERE tgt.hashtag_id IS NULL OR tgt.sha_key <> src_null.sha_key
-       
-       UNION ALL
-
-       --- ROWS THAT HAD CHANGED
-       SELECT src.*, src.hashtag_id AS mergeKey, 'UPDATE' AS action FROM content_job.temp.df_sha256_hashtags src
-       JOIN content_job.silver.hashtags tgt ON src.hashtag_id = tgt.hashtag_id 
-       WHERE tgt.is_current = true AND tgt.sha_key <> src.sha_key
-
-       UNION ALL
-       -- DELETED ROWS
-       SELECT tgt.hashtag_id, tgt.tag_text, tgt.first_use_time, tgt.valid_from, tgt.sha_key, tgt.hashtag_id AS mergeKey, 'DELETE' AS action
-       FROM content_job.silver.hashtags tgt
-       LEFT JOIN content_job.temp.df_sha256_hashtags src ON tgt.hashtag_id = src.hashtag_id 
-       WHERE src.hashtag_id IS NULL AND tgt.is_current = true
-
-       ) src
-ON tgt.hashtag_id = src.mergeKey AND tgt.is_current = true
-
-WHEN MATCHED AND tgt.sha_key <> src.sha_key OR src.action = 'DELETE' THEN UPDATE
-SET 
-    tgt.valid_to = src.ingest_time,
-    tgt.is_current = false
-
-
-WHEN NOT MATCHED AND src.action = 'INSERT' THEN
-INSERT 
-    (
-    hashtag_id,
-    tag_text,
-    first_use_time,
-    sha_key,
-    valid_from,
-    valid_to,
-    is_current
-    )
-    VALUES
-    (
-    src.hashtag_id,
-    src.tag_text ,
-    src.first_use_time,
-    src.sha_key,
-    src.ingest_time,
-    to_timestamp('9999-12-31 23:59:59'),
-    true
-    )
-
-"""
-
-
-spark.sql(sql_code)
-
-
-
-
-sql_code = """
-CREATE TABLE IF NOT EXISTS content_job.silver.post_hashtag(
-    post_id INT,
-    hashtag_id INT,
     sha_key STRING,
     valid_from TIMESTAMP,
     valid_to TIMESTAMP,
     is_current BOOLEAN 
 )
-
 USING DELTA
-"""
-
-spark.sql(sql_code)
-
-
-sql_code ="""
-MERGE INTO content_job.silver.post_hashtag tgt
-USING (
-    -- COMPLETELY NEW ROWS
-    SELECT src_null.*, NULL AS mergeKey_1, NULL AS mergeKey_2,'INSERT' AS action
-    FROM content_job.temp.df_sha256_post_hashtag src_null 
-    LEFT JOIN content_job.silver.post_hashtag tgt 
-    ON src_null.post_id = tgt.post_id AND src_null.hashtag_id = tgt.hashtag_id AND tgt.is_current = true
-    WHERE tgt.post_id IS NULL AND tgt.hashtag_id IS NULL
-    
-    UNION ALL 
-
-    -- CHANGED ROWS
-    SELECT src.* , src.post_id AS mergeKey_1, src.hashtag_id AS mergeKey_2, 'UPDATE' AS action
-    FROM content_job.temp.df_sha256_post_hashtag src 
-    JOIN content_job.silver.post_hashtag tgt ON src.post_id = tgt.post_id AND src.hashtag_id = tgt.hashtag_id 
-    WHERE src.sha_key <> tgt.sha_key AND tgt.is_current
-
-    -- DELETE ROWS
-    UNION ALL
-
-    SELECT tgt.post_id, tgt.hashtag_id, tgt.valid_from, tgt.sha_key, tgt.post_id AS mergeKey_1, tgt.hashtag_id AS mergeKey_2, 'DELETE' AS action
-    FROM content_job.silver.post_hashtag tgt 
-    LEFT JOIN content_job.temp.df_sha256_post_hashtag src 
-    ON src.post_id = tgt.post_id AND src.hashtag_id = tgt.hashtag_id 
-    WHERE src.post_id IS NULL AND src.hashtag_id IS NULL AND tgt.is_current
-
-
-    ) src
-ON tgt.post_id = src.mergeKey_1 AND tgt.hashtag_id = src.mergeKey_2 AND tgt.is_current = true 
-
-WHEN MATCHED AND tgt.sha_key <> src.sha_key OR src.action = 'DELETE' THEN UPDATE 
-SET 
-    tgt.valid_to = src.ingest_time,
-    tgt.is_current = false
-
-WHEN NOT MATCHED THEN 
-INSERT(
-       post_id,
-       hashtag_id,
-       sha_key,
-       valid_from,
-       valid_to,
-       is_current
-       )
-VALUES(
-       src.post_id,
-       src.hashtag_id,
-       src.sha_key,
-       src.ingest_time,
-       to_timestamp('9999-12-31 23:59:59'),
-       true
-       )
-
-
-"""
-
-spark.sql(sql_code)
-
-
-sql_code = """
-CREATE TABLE IF NOT EXISTS content_job.silver.comments(
-    comment_id INT,
-    author_account_id INT,
-    post_id INT,
-    created_at_time INT,
-    comment_text STRING,
-    status VARCHAR(50),
-    is_image BOOLEAN,
-    sha_key STRING,
-    valid_from TIMESTAMP,
-    valid_to TIMESTAMP,
-    is_current BOOLEAN
-    
-)
-    
-USING DELTA;
-
-"""
-
-spark.sql(sql_code)
-
-
-
-sql_code = """
-MERGE INTO content_job.silver.comments tgt
-USING (
-        --- INSERT NEW ROWS 
-        SELECT src_null.*, NULL AS mergeKey, 'INSERT' AS action FROM content_job.temp.df_sha256_comments src_null
-        LEFT JOIN content_job.silver.comments tgt ON src_null.comment_id = tgt.comment_id AND tgt.is_current = true
-        WHERE tgt.comment_id IS NULL OR src_null.sha_key <> tgt.sha_key
-
-        UNION ALL
-
-        --- ROWS THAT CHANGED IN THE PAST
-        SELECT src.*, src.comment_id AS mergeKey, 'UPDATE' AS action FROM content_job.temp.df_sha256_comments src
-        JOIN content_job.silver.comments tgt ON src.comment_id = tgt.comment_id
-        WHERE tgt.is_current = true AND src.sha_key <> tgt.sha_key
-
-        UNION ALL
-        
-        --- DELETED ROWS
-        SELECT tgt.comment_id, tgt.author_account_id, tgt.post_id, tgt.created_at_time, tgt.comment_text, tgt.status,
-        tgt.is_image, tgt.valid_from, tgt.sha_key, tgt.comment_id AS mergeKEy, 'DELETE' AS action FROM content_job.silver.comments tgt
-        LEFT JOIN content_job.bronze.comments src ON tgt.comment_id = src.comment_id 
-        WHERE tgt.is_current = true AND src.comment_id IS NULL
-
-       ) src
-ON tgt.comment_id = src.mergeKey AND tgt.is_current = true
-
-WHEN MATCHED AND tgt.sha_key <> src.sha_key OR src.action = 'DELETE' THEN UPDATE 
-SET 
-    tgt.valid_to = src.ingest_time,
-    tgt.is_current = false
-
-WHEN NOT MATCHED THEN 
-INSERT(
-      comment_id,
-      author_account_id,
-      post_id,
-      created_at_time,
-      comment_text,
-      status,
-      is_image,
-      sha_key,
-      valid_from,
-      valid_to,
-      is_current
-      ) 
-VALUES(
-      src.comment_id,
-      src.author_account_id,
-      src.post_id,
-      src.created_at_time,
-      src.comment_text,
-      src.status,
-      src.is_image,
-      src.sha_key,
-      src.ingest_time,
-      to_timestamp('9999-12-31 23:59:59'),
-      true
-      )
-
-"""
-
-spark.sql(sql_code)
-
-
-
-
-
-####### REACTIONS ######
-
-
-sql_code = """
-CREATE TABLE IF NOT EXISTS content_job.silver.reactions(
-    reaction_id INT,
-    reacted_at_time INT,
-    account_id INT,
-    post_id INT,
-    reaction_type VARCHAR(25),
-    sha_key STRING,
-    valid_from TIMESTAMP,
-    valid_to TIMESTAMP,
-    is_current BOOLEAN
-    
-)
-
-USING DELTA;
-
+CLUSTER BY (reaction_id);
 """
 
 spark.sql(sql_code)
@@ -2162,52 +1155,7 @@ VALUES(
 
 spark.sql(sql_code)
 
+spark.sql("OPTIMIZE content_job.silver.reactions")
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+spark.sql("VACUUM content_job.silver.reactions RETAIN 720 HOURS")
 
