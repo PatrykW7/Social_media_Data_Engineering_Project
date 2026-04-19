@@ -1,3 +1,5 @@
+
+
 sql_code = """
 CREATE TABLE IF NOT EXISTS content_job.silver.account_user (
        account_id INT,
@@ -17,7 +19,8 @@ CREATE TABLE IF NOT EXISTS content_job.silver.account_user (
        valid_to TIMESTAMP,
        is_current BOOLEAN
     )
-USING DELTA;
+USING DELTA
+CLUSTER BY (account_id);
 """
 
 spark.sql(sql_code)
@@ -101,6 +104,12 @@ USING (
 
 spark.sql(sql_code)
 
+spark.sql("OPTIMIZE content_job.silver.account_user")
+
+
+spark.sql("VACUUM content_job.silver.account_user RETAIN 720 HOURS")
+
+
 
 
 
@@ -129,10 +138,9 @@ CREATE TABLE IF NOT EXISTS content_job.silver.account_details (
     valid_from TIMESTAMP,
     valid_to TIMESTAMP,
     is_current BOOLEAN
-    
-    
 )
-USING DELTA;
+USING DELTA
+CLUSTER BY (userId);
 
 """
 
@@ -225,9 +233,15 @@ USING (
 
 spark.sql(sql_code)
 
+spark.sql("OPTIMIZE content_job.silver.account_details")
+
+spark.sql("VACUUM content_job.silver.account_details RETAIN 720 HOURS")
+
+
+
+
 
 ######################## TIME ######################
-
 
 
 
@@ -246,8 +260,8 @@ valid_from TIMESTAMP,
 valid_to TIMESTAMP,
 is_current BOOLEAN
 )
-
-USING DELTA;
+USING DELTA
+CLUSTER BY (time_id);
 
 
 """
@@ -317,11 +331,15 @@ INSERT
         true
     
 )
-
-
 """
 
 spark.sql(sql_code)
+
+
+spark.sql("OPTIMIZE content_job.silver.time")
+
+spark.sql("VACUUM content_job.silver.time RETAIN 720 HOURS")
+
 
 
 
@@ -336,11 +354,10 @@ sha_key STRING,
 valid_from TIMESTAMP,
 valid_to TIMESTAMP,
 is_current BOOLEAN    
-
 )
 
-USING DELTA;
-
+USING DELTA
+CLUSTER BY (follower_account_id, followed_account_id);
 """
 
 spark.sql(sql_code)
@@ -398,8 +415,13 @@ WHEN NOT MATCHED THEN
 
 """
 
-
 spark.sql(sql_code)
+
+spark.sql("OPTIMIZE content_job.silver.follow_relationship")
+
+spark.sql("VACUUM content_job.silver.follow_relationship RETAIN 720 HOURS")
+
+
 
 
 ### ADVERTISERS
@@ -414,11 +436,9 @@ CREATE TABLE IF NOT EXISTS content_job.silver.advertisers(
     valid_from TIMESTAMP,
     valid_to TIMESTAMP,
     is_current BOOLEAN
-
 )
-
-USING DELTA;
-
+USING DELTA
+CLUSTER BY (advertiser_id);
 """
 
 spark.sql(sql_code)
@@ -482,10 +502,14 @@ VALUES (
        )
 
 """
-
-
-
 spark.sql(sql_code)
+
+spark.sql("OPTIMIZE content_job.silver.advertisers")
+
+spark.sql("VACUUM content_job.silver.advertisers RETAIN 720 HOURS")
+
+
+
 
 
 ####### ADVERTISEMENTS
@@ -509,11 +533,9 @@ CREATE TABLE IF NOT EXISTS content_job.silver.advertisements(
     valid_from TIMESTAMP,
     valid_to TIMESTAMP,
     is_current BOOLEAN
-
 )
-USING DELTA;
-
-
+USING DELTA
+CLUSTER BY (advertisement_id);
 """
 
 spark.sql(sql_code)
@@ -594,7 +616,12 @@ VALUES(
 
 """
 
+spark.sql(sql_code)
 
+
+spark.sql("OPTIMIZE content_job.silver.advertisements")
+
+spark.sql("VACUUM content_job.silver.advertisements RETAIN 720 HOURS")
 
 
 
@@ -616,11 +643,9 @@ CREATE TABLE IF NOT EXISTS content_job.silver.posts(
     valid_from TIMESTAMP,
     valid_to TIMESTAMP,
     is_current BOOLEAN
-
 )
-
-USING DELTA;
-
+USING DELTA
+CLUSTER BY (post_id);
 """
 
 spark.sql(sql_code)
@@ -692,8 +717,12 @@ VALUES(
 
 """
 
-
 spark.sql(sql_code)
+
+spark.sql("OPTIMIZE content_job.silver.posts")
+
+spark.sql("VACUUM content_job.silver.posts RETAIN 720 HOURS")
+
 
 
 sql_code = """
@@ -708,8 +737,8 @@ CREATE TABLE IF NOT EXISTS content_job.silver.post_media (
        valid_to TIMESTAMP,
        is_current BOOLEAN
 )
-
-USING DELTA;
+USING DELTA
+CLUSTER BY (media_id, post_id);
 
 """
 
@@ -778,7 +807,9 @@ VALUES(
 
 spark.sql(sql_code)
 
+spark.sql("OPTIMIZE content_job.silver.post_media")
 
+spark.sql("VACUUM content_job.silver.post_media RETAIN 720 HOURS")
 
 
 
@@ -795,9 +826,8 @@ CREATE TABLE IF NOT EXISTS content_job.silver.hashtags(
     valid_to TIMESTAMP,
     is_current BOOLEAN
     )
-
-USING DELTA;
-
+USING DELTA
+CLUSTER BY (hashtag_id);
 """
 
 spark.sql(sql_code)
@@ -861,6 +891,9 @@ INSERT
 
 spark.sql(sql_code)
 
+spark.sql("OPTIMIZE content_job.silver.hashtags")
+
+spark.sql("VACUUM content_job.silver.hashtags RETAIN 720 HOURS")
 
 
 
@@ -873,8 +906,8 @@ CREATE TABLE IF NOT EXISTS content_job.silver.post_hashtag(
     valid_to TIMESTAMP,
     is_current BOOLEAN 
 )
-
 USING DELTA
+CLUSTER BY (post_id, hashtag_id)
 """
 
 spark.sql(sql_code)
@@ -939,6 +972,11 @@ VALUES(
 
 spark.sql(sql_code)
 
+spark.sql("OPTIMIZE content_job.silver.post_hashtag")
+
+spark.sql("VACUUM content_job.silver.post_hashtag RETAIN 720 HOURS")
+
+
 
 sql_code = """
 CREATE TABLE IF NOT EXISTS content_job.silver.comments(
@@ -953,11 +991,9 @@ CREATE TABLE IF NOT EXISTS content_job.silver.comments(
     valid_from TIMESTAMP,
     valid_to TIMESTAMP,
     is_current BOOLEAN
-    
 )
-    
-USING DELTA;
-
+USING DELTA
+CLUSTER BY (comment_id);
 """
 
 spark.sql(sql_code)
@@ -1027,7 +1063,9 @@ VALUES(
 
 spark.sql(sql_code)
 
+spark.sql("OPTIMIZE content_job.silver.comments")
 
+spark.sql("VACUUM content_job.silver.comments RETAIN 720 HOURS")
 
 
 
@@ -1044,12 +1082,10 @@ CREATE TABLE IF NOT EXISTS content_job.silver.reactions(
     sha_key STRING,
     valid_from TIMESTAMP,
     valid_to TIMESTAMP,
-    is_current BOOLEAN
-    
+    is_current BOOLEAN 
 )
-
-USING DELTA;
-
+USING DELTA
+CLUSTER BY (reaction_id);
 """
 
 spark.sql(sql_code)
@@ -1119,38 +1155,7 @@ VALUES(
 
 spark.sql(sql_code)
 
+spark.sql("OPTIMIZE content_job.silver.reactions")
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+spark.sql("VACUUM content_job.silver.reactions RETAIN 720 HOURS")
 
